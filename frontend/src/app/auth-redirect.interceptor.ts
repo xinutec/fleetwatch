@@ -6,6 +6,11 @@ import { catchError, throwError } from 'rxjs';
 // session, so bounce to /login — a top-level backend route that kicks off the
 // NC OAuth flow and returns here. /login is not under /api, so this interceptor
 // (which only wraps HttpClient calls) never loops on the redirect itself.
+//
+// dev-lint: allow-http-status — this interceptor IS fleetwatch's HTTP error
+// boundary. It acts only on an exact 401 (an offline status 0 falls through and
+// rethrows, so there's no offline-vs-auth confusion to classify); a shared
+// discriminated-union classifier would be over-engineering for a read-only app.
 export const authRedirectInterceptor: HttpInterceptorFn = (req, next) =>
   next(req).pipe(
     catchError((err: HttpErrorResponse) => {
