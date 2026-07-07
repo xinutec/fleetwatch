@@ -17,6 +17,8 @@ on:
 
 jobs:
   verify:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     container: rust:1-bookworm
     # A throwaway MariaDB so the DB round-trip tests actually run (they migrate +
@@ -39,6 +41,8 @@ jobs:
       - run: cargo test -- --test-threads=1
 
   fe-verify:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,6 +59,9 @@ jobs:
 
   image:
     needs: [verify, fe-verify]
+    # Docker Hub auth comes from repo secrets; the GITHUB_TOKEN only reads.
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

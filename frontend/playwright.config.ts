@@ -9,7 +9,10 @@ import { defineConfig, devices } from '@playwright/test';
  * mistake that once ran life's "phone" tests at 1280×720. The one-line viewport
  * self-guard spec fails loudly if emulation is ever lost again.
  */
-const PORT = 4281;
+// Unique per app (life 4271, messages 4272, health 4273, home 4274, coach 4281,
+// gamepads 4291): reuseExistingServer + a shared port once made this suite run
+// against coach's leaked serve.mjs and "fail" on coach's DOM.
+const PORT = 4282;
 
 export default defineConfig({
   testDir: './e2e',
