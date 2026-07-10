@@ -87,6 +87,39 @@ pub fn parse_tokens(raw: &str) -> Result<Vec<(String, String)>> {
     Ok(out)
 }
 
+/// Minimum accepted `SESSION_SECRET` length. 32 chars ≈ 256 bits of key material.
+pub const MIN_SESSION_SECRET_LEN: usize = 32;
+
+/// The session secret is the HMAC key over the cookie. The id it signs is already
+/// a 256-bit random DB-backed token, so a strong secret is defence-in-depth — but
+/// there is no reason to accept a trivially weak key. Reject at boot.
+pub fn check_session_secret(secret: &str) -> Result<()> {
+    if secret.len() < MIN_SESSION_SECRET_LEN {
+        anyhow::bail!(
+            "SESSION_SECRET is too short ({} chars) — use at least {MIN_SESSION_SECRET_LEN} \
+             (e.g. `openssl rand -hex 32`)",
+            secret.len()
+        );
+    }
+    Ok(())
+}
+
+/// Fail closed on the dev auth bypass. `/dev-login` mints a session with no
+/// Nextcloud check, so it must never be reachable in a real deployment. Production
+/// is the config that serves the static bundle (STATIC_DIR set); dev is API-only
+/// with `ng serve` proxying /api. If the bypass is enabled alongside static
+/// serving, that's a misconfiguration we refuse to boot on — a crashloop instead
+/// of an open door.
+pub fn check_dev_login_safe(dev_login_user: Option<&str>, static_dir: Option<&str>) -> Result<()> {
+    if dev_login_user.is_some() && static_dir.is_some() {
+        anyhow::bail!(
+            "DEV_LOGIN_USER is set while serving a static bundle (STATIC_DIR) — the \
+             /dev-login auth bypass must never be enabled in a production deployment"
+        );
+    }
+    Ok(())
+}
+
 impl Config {
     pub fn from_env() -> Result<Self> {
         let tokens = parse_tokens(&env("FLEETWATCH_TOKENS")?)?;
@@ -101,19 +134,27 @@ impl Config {
         if !matches!(parsed.scheme(), "http" | "https") || parsed.host().is_none() {
             anyhow::bail!("NC_BASE_URL must be an http(s) URL with a host: {nc_base_url:?}");
         }
+
+        let session_secret = env("SESSION_SECRET")?;
+        check_session_secret(&session_secret)?;
+
+        let static_dir = std::env::var("STATIC_DIR").ok();
+        let dev_login_user = std::env::var("DEV_LOGIN_USER").ok();
+        check_dev_login_safe(dev_login_user.as_deref(), static_dir.as_deref())?;
+
         Ok(Self {
             database_url: env("DATABASE_URL")?,
             bind_addr: env_or("BIND_ADDR", "0.0.0.0:8080"),
-            static_dir: std::env::var("STATIC_DIR").ok(),
+            static_dir,
             tokens,
             raw_retention_days: env_i64("FLEETWATCH_RAW_RETENTION_DAYS", 30)?,
             check_retention_days: env_i64("FLEETWATCH_CHECK_RETENTION_DAYS", 400)?,
-            session_secret: env("SESSION_SECRET")?,
+            session_secret,
             nc_base_url,
             nc_client_id: env("NC_CLIENT_ID")?,
             nc_client_secret: env("NC_CLIENT_SECRET")?,
             nc_redirect_uri: env("NC_REDIRECT_URI")?,
-            dev_login_user: std::env::var("DEV_LOGIN_USER").ok(),
+            dev_login_user,
         })
     }
 }
