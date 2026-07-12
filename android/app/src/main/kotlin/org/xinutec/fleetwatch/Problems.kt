@@ -21,6 +21,21 @@ data class Problems(
     val count: Int get() = checks.size + stale.size
 
     /**
+     * The subset worth waking a phone for: failures and silent producers. Warnings are
+     * dropped.
+     *
+     * A warning is something to know, not something to do — and some of them are true
+     * indefinitely by design (amun is *deliberately* held a NixOS release behind, and the
+     * fleet check says so on every run, forever). Letting those reach the notification
+     * would mean the phone reports a standing decision as if it were news, and the first
+     * thing that teaches you is to stop reading fleetwatch notifications — at which point
+     * the real failure, the one this app exists for, arrives in a channel you've learned
+     * to ignore. So warnings live on the dashboard, where you go to look; the notification
+     * is reserved for what is actually broken.
+     */
+    fun notifiable(): Problems = copy(checks = checks.filter { it.verdict != WARN })
+
+    /**
      * A stable identity for "the current problem set", used to notify only on CHANGE.
      *
      * Re-notifying every 30 minutes about a problem already seen trains you to swipe the
@@ -49,6 +64,9 @@ data class Problems(
 
     companion object {
         private const val MAX_NAMED = 3
+
+        /** The API's verdict string for a warning (src/report/types.rs). */
+        const val WARN = "warn"
 
         /** Parse the API payload. Unknown/missing fields degrade to empty, never throw. */
         fun parse(json: String): Problems {

@@ -64,21 +64,30 @@ class ProblemsWorker(
                 return Result.retry()
             }
 
+        // Every decision below is made on the notifiable subset — failures and silent
+        // producers, never warnings. Taking it once, here, is what keeps the three cases
+        // consistent: a standing warning must not raise an alert, must not hold an old one
+        // open after the failures clear, and must not make an unchanged fleet look new.
+        val alerting = problems.notifiable()
+        if (problems.count != alerting.count) {
+            Log.i(TAG, "${problems.count - alerting.count} warning(s) shown on the dashboard only")
+        }
+
         val prefs = Prefs.of(applicationContext)
         val last = prefs.getString(KEY_LAST_FINGERPRINT, "") ?: ""
-        val now = problems.fingerprint()
+        val now = alerting.fingerprint()
         prefs.edit { putString(KEY_LAST_FINGERPRINT, now) }
 
         when {
             // Nothing wrong: clear any standing alert, so the notification tracks reality
             // instead of lingering after the fleet recovers.
-            problems.isEmpty -> notificationManager().cancel(NOTIFICATION_ID)
+            alerting.isEmpty -> notificationManager().cancel(NOTIFICATION_ID)
 
             // Same problems as last poll: already told you. Staying quiet is what keeps
             // the notification meaningful when it does fire.
-            now == last -> Log.i(TAG, "unchanged (${problems.count} problem(s))")
+            now == last -> Log.i(TAG, "unchanged (${alerting.count} problem(s))")
 
-            else -> notify(problems)
+            else -> notify(alerting)
         }
         return Result.success()
     }

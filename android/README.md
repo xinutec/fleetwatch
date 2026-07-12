@@ -18,7 +18,8 @@ login, which the WebView performs interactively.
   strips behind the bars with the page's own surface colour (read on load, so it
   tracks the Material light/dark theme).
 - **Polls `GET /api/problems` every 30 minutes** (`ProblemsWorker`) and raises a
-  notification **when the problem set changes**. Tapping it opens `/problems`.
+  notification **when the set of failures changes** (warnings are dashboard-only — see
+  below). Tapping it opens `/problems`.
 
 Runs on any Android 8+ (minSdk 26) device. Must be on the VPN to reach the host.
 
@@ -33,6 +34,14 @@ asks on a timer; the server stays passive.
 - **Cadence:** 30 min, via WorkManager (above its 15-minute floor), network-constrained.
   WorkManager batches the wakeup with the system's, so the battery cost is ~0: one HTTPS
   GET per run.
+- **Failures only, never warnings** (`Problems.notifiable()`): the notification is
+  reserved for what is broken — a failing check or a silent producer. A warning is
+  something to know, not something to do, and some are true indefinitely by design (the
+  fleet check warns, permanently, that amun is *deliberately* held a NixOS release
+  behind). Pushing those to a phone reports a standing decision as news, and teaches you
+  to ignore the channel that carries the real failures. Warnings stay on the dashboard,
+  where you go to look. Escalation still fires: the moment the same check turns from warn
+  to fail, it notifies.
 - **Only on change:** the problem set is fingerprinted (`Problems.fingerprint()`) and a
   notification fires only when it differs from the last poll. Re-notifying every 30 min
   about a problem you already know about trains you to swipe alerts away unread — at

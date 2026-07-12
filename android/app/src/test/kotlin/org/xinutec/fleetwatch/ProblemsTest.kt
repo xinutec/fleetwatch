@@ -161,4 +161,82 @@ class ProblemsTest {
     fun `missing arrays are treated as no problems`() {
         assertTrue(problems("{}").isEmpty)
     }
+
+    @Test
+    fun `a warning alone does not warrant a notification`() {
+        // The case that forced this: fleet-health warns, permanently and on purpose, that
+        // amun is held a NixOS release behind. A phone that reports a standing decision as
+        // news teaches you to swipe fleetwatch away.
+        val p =
+            problems(
+                """{"checks":[{"source":"mac-mini","collector":"fleet-health",
+               "section":"NIXOS RELEASE PARITY","label":"release parity","verdict":"warn",
+               "observed":"amun on 25.05 — the fleet is on 26.05"}],"stale":[]}""",
+            )
+        assertEquals(1, p.count) // the dashboard still shows it
+        assertTrue(p.notifiable().isEmpty) // the phone stays quiet
+    }
+
+    @Test
+    fun `a failure alongside a warning notifies about the failure only`() {
+        val p =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"pixel5",
+               "verdict":"fail","observed":"x"},{"source":"s","collector":"c","section":"r",
+               "label":"release parity","verdict":"warn","observed":"y"}],"stale":[]}""",
+            )
+        assertEquals(1, p.notifiable().count)
+        assertEquals("pixel5 fail", p.notifiable().summary())
+    }
+
+    @Test
+    fun `a silent producer still notifies even with warnings present`() {
+        // Warnings are dropped; a dead producer is not — that is the failure fleetwatch
+        // exists to catch, and it must survive the filter.
+        val p =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"w",
+               "verdict":"warn","observed":""}],
+               "stale":[{"source":"mac-mini","collector":"fleet-health"}]}""",
+            )
+        assertEquals(1, p.notifiable().count)
+        assertTrue(p.notifiable().summary().contains("mac-mini/fleet-health silent"))
+    }
+
+    @Test
+    fun `a warning appearing beside a standing failure does not re-notify`() {
+        // The poller fingerprints the notifiable set, so a new warning must not make an
+        // unchanged failure look new — otherwise every warning re-rings the old alarm.
+        val failOnly =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"pixel5",
+               "verdict":"fail","observed":"x"}],"stale":[]}""",
+            )
+        val failPlusWarn =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"pixel5",
+               "verdict":"fail","observed":"x"},{"source":"s","collector":"c","section":"r",
+               "label":"release parity","verdict":"warn","observed":"y"}],"stale":[]}""",
+            )
+        assertEquals(failOnly.notifiable().fingerprint(), failPlusWarn.notifiable().fingerprint())
+    }
+
+    @Test
+    fun `a warning escalating to a failure does notify`() {
+        // The filter must not swallow escalation: quiet while it is a warning, loud the
+        // moment the same check turns into a failure.
+        val warn =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"disk",
+               "verdict":"warn","observed":"85%"}],"stale":[]}""",
+            )
+        val fail =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"disk",
+               "verdict":"fail","observed":"96%"}],"stale":[]}""",
+            )
+        assertTrue(warn.notifiable().isEmpty)
+        assertEquals(1, fail.notifiable().count)
+        assertNotEquals(warn.notifiable().fingerprint(), fail.notifiable().fingerprint())
+    }
 }
