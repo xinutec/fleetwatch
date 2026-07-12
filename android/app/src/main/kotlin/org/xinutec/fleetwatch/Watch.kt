@@ -141,7 +141,12 @@ class ProblemsWorker(
                 .setContentTitle(title)
                 .setContentText(problems.summary())
                 .setStyle(NotificationCompat.BigTextStyle().bigText(problems.summary()))
-                .setSmallIcon(android.R.drawable.stat_notify_error)
+                // MUST be one of OUR drawables. A framework icon (android.R.drawable.*)
+                // resolves against this app's package, finds nothing, and the system then
+                // drops the notification silently — no exception, no log, notify() returns
+                // as if it worked. Exactly that shipped here once and was caught only by
+                // checking dumpsys for the posted record.
+                .setSmallIcon(R.drawable.ic_alert)
                 .setCategory(NotificationCompat.CATEGORY_STATUS)
                 .setAutoCancel(true)
                 .setContentIntent(open)

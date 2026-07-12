@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/colorControlNormal">
+    <!-- Status-bar icon for the problem notification (ProblemsWorker). A warning
+         triangle with an exclamation punched out of it.
+
+         MUST be a flat monochrome silhouette owned by THIS package: the status bar
+         ignores colour and uses only the alpha channel, and a framework drawable
+         (android.R.drawable.*) cannot be used — NotificationCompat resolves the icon
+         against the app's own package, so a framework id resolves to nothing and the
+         system DISCARDS the notification silently, with no exception and no log. That
+         bug shipped here once; this file is the fix. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,2.5 L23,21.5 H1 Z M11,9 h2 v6 h-2 Z M11,17 h2 v2 h-2 Z" />
+</vector>
