@@ -34,6 +34,25 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
     if token.is_empty() { None } else { Some(token) }
 }
 
+/// True if the request carries a valid *read* token (see `Config::read_tokens`).
+///
+/// A read token has no identity — it grants no write, stamps no source, and opens only
+/// `/api/problems`. It exists for unattended readers (the Android poller) that cannot
+/// do an interactive Nextcloud login. Every token is compared constant-time, and an
+/// empty token list can never match, so the default config admits no one.
+pub fn authenticate_read(headers: &HeaderMap, read_tokens: &[String]) -> bool {
+    let Some(presented) = bearer(headers) else {
+        return false;
+    };
+    let mut ok = false;
+    for token in read_tokens {
+        if ct_eq(presented.as_bytes(), token.as_bytes()) {
+            ok = true;
+        }
+    }
+    ok
+}
+
 /// Resolve the request's bearer token to a source name, or None if it matches no
 /// configured producer. `tokens` is the `(source, token)` list from config.
 pub fn authenticate(headers: &HeaderMap, tokens: &[(String, String)]) -> Option<String> {

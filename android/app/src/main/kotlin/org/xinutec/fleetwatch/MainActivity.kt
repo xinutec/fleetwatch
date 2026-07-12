@@ -1,8 +1,12 @@
 package org.xinutec.fleetwatch
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -10,6 +14,8 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -117,9 +123,47 @@ class MainActivity : ComponentActivity() {
         setContentView(root)
 
         onBackPressedDispatcher.addCallback(this, backCallback)
-        // Reopen where we left off; the hardcoded URL is only the first-run default.
-        web.loadUrl(prefs.getString(KEY_LAST_URL, null) ?: FLEETWATCH_URL)
+        // Tapped a problem notification? Go straight to what's wrong, not to wherever the
+        // app happened to be left. Otherwise reopen where we left off; the hardcoded URL
+        // is only the first-run default.
+        val target =
+            if (intent?.getBooleanExtra(EXTRA_OPEN_PROBLEMS, false) == true) {
+                PROBLEMS_URL
+            } else {
+                prefs.getString(KEY_LAST_URL, null) ?: FLEETWATCH_URL
+            }
+        web.loadUrl(target)
+
+        requestNotificationPermission()
+        // Idempotent (KEEP): opening the app doesn't restart the 30-minute cycle.
+        ProblemsWorker.schedule(this)
     }
+
+    /** Already-running instance tapped from a notification: jump to the problems page. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_PROBLEMS, false)) {
+            web.loadUrl(PROBLEMS_URL)
+        }
+    }
+
+    /**
+     * Ask for POST_NOTIFICATIONS (API 33+). Without it the poller runs but cannot tell
+     * you anything — a monitor that watches in silence. Asked once on launch; if it's
+     * refused, Android simply won't show the alerts and the dashboard still works.
+     */
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* best effort */ }
 
     /** Intercept back only while the SPA has somewhere in-app to go; otherwise let
      *  the system handle it (finish / predictive exit). */
@@ -137,8 +181,12 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        // The fleetwatch dashboard (HTTPS, VPN-only, no login).
+        // The fleetwatch dashboard (HTTPS, VPN-only; reads are behind a Nextcloud login).
         private const val FLEETWATCH_URL = "https://fleetwatch.xinutec.org/"
+        private const val PROBLEMS_URL = "https://fleetwatch.xinutec.org/problems"
         private const val KEY_LAST_URL = "last_url"
+
+        /** Set by the poller's notification: open on the problems page, not the last page. */
+        const val EXTRA_OPEN_PROBLEMS = "open_problems"
     }
 }

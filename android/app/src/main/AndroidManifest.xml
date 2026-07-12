@@ -7,6 +7,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The background poller (ProblemsWorker) raises a notification when the fleet's
+         problem set changes. Runtime-granted on API 33+; MainActivity asks on launch. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"

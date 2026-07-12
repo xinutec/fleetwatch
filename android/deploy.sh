@@ -12,6 +12,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 ADB="$ANDROID_HOME/platform-tools/adb"
+PKG=org.xinutec.fleetwatch
+
+# The fleetwatch READ token (opens GET /api/problems and nothing else — see
+# FLEETWATCH_READ_TOKENS in the k8s secret). Distinct from the producers' ingest tokens:
+# this one only ever reads, so a lost phone leaks no write access and no report history.
+TOKEN_SVC=fleetwatch-read-token
+TOKEN_ACCT=fleetwatch
 
 echo "building APK…"
 ./gradlew :app:assembleDebug -q
@@ -33,6 +40,20 @@ for EP in "${CANDIDATES[@]}"; do
   fi
   echo "=== installing to Pixel 9 ($EP) ==="
   "$ADB" -s "$EP" install -r "$APK"
+  # The background poller needs to be able to speak: grant notifications up front so a
+  # fresh install alerts without waiting for someone to tap through the runtime prompt.
+  "$ADB" -s "$EP" shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS || true
+  # Inject the read token (GET /api/problems only) into the app's private files dir over
+  # run-as. Piped straight from the Keychain, so it never lands in argv, a log, or this
+  # repo. `tee`, not `sh -c 'cat > …'`: a nested shell loses run-as's app-dir cwd.
+  "$ADB" -s "$EP" shell run-as "$PKG" mkdir -p files || true
+  if /usr/bin/security find-generic-password -a "$TOKEN_ACCT" -s "$TOKEN_SVC" -w 2>/dev/null \
+      | "$ADB" -s "$EP" shell run-as "$PKG" tee files/read_token >/dev/null; then
+    echo "  read token injected."
+  else
+    echo "  WARN: no read token set — the problem poller will stay idle." >&2
+    echo "  Add one with:  security add-generic-password -a $TOKEN_ACCT -s $TOKEN_SVC -w <token>" >&2
+  fi
   "$ADB" -s "$EP" shell am start -n org.xinutec.fleetwatch/.MainActivity >/dev/null
   echo "  installed + launched on Pixel 9 ($EP)."
   exit 0

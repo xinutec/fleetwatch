@@ -27,9 +27,14 @@ Two roles, deliberately separated:
 
 ### Non-goals (v1)
 
-- No alerting / push notifications. It is a pull-based dashboard; dead-man alerting
-  stays on healthchecks.io. (Future: fleetwatch itself could notify, or expose its own
-  dead-man state to healthchecks.)
+- No *server-pushed* alerting. fleetwatch never reaches out: no FCM, no mail, no
+  webhook. Dead-man alerting stays on healthchecks.io.
+  **Superseded in part (2026-07-12):** the Android app now *pulls* — a background
+  worker polls `GET /api/problems` every 30 min and raises a local notification when
+  the problem set changes (see §Android). The service stays passive; the phone asks.
+  This exists because a dead producer that nobody looks at is a dead producer nobody
+  knows about: the pixel5 sensor receiver went silent for 7 hours and was caught only
+  by a human noticing a missing line on a chart.
 - No remote command execution — strictly ingest + display. The service never reaches
   out to the fleet (it can't reach the Mac anyway; the Mac is a one-way VPN peer).
 - No metric-scraping agents (node_exporter etc.). Producers are our own tools.
@@ -149,7 +154,7 @@ All under `/api`, plus `/healthz`. Types shared Rust→TS via ts-rs (life patter
 |---|---|
 | `POST /api/reports` | Ingest. `Authorization: Bearer <token>`. 201 on store, **200 on duplicate `id`** (idempotent replay from the spool), 401 bad token, 422 bad schema. |
 | `GET /api/overview` | Sources × collectors: latest verdict rollup, check counts by verdict, `collected_at`, staleness state. The home-screen query. |
-| `GET /api/problems` | All checks with verdict fail/warn from each collector's *latest* report, plus overdue collectors. "What's wrong right now." |
+| `GET /api/problems` | All checks with verdict fail/warn from each collector's *latest* report, plus overdue collectors. "What's wrong right now." The **only** endpoint a *read token* opens (`FLEETWATCH_READ_TOKENS`, `Authorization: Bearer`), for the Android poller — a background worker can't do an interactive NC login. Every other read stays session-only, so a leaked phone token can't walk the report history. |
 | `GET /api/reports?source&collector&limit` | Report list (history of runs). |
 | `GET /api/reports/:id` | One report with all checks, grouped by section — the CLI-output-mirror view. |
 | `GET /api/history?source&collector&section&label&from&to` | Time series for one check: `(collected_at, verdict, value)` tuples. Feeds sparklines/charts and "since when is this red". |

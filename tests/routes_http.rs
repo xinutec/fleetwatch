@@ -21,6 +21,7 @@ fn app() -> axum::Router {
         bind_addr: "0.0.0.0:0".into(),
         static_dir: None,
         tokens: vec![("mac-mini".into(), "secret-token".into())],
+        read_tokens: vec!["read-token-0123456789abcdef".into()],
         raw_retention_days: 30,
         check_retention_days: 400,
         session_secret: "test-session-secret".into(),
@@ -76,6 +77,86 @@ async fn read_endpoint_without_session_is_401() {
     // extractor rejects before touching the pool, so no DB is needed here.
     let res = app()
         .oneshot(Request::get("/api/overview").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn problems_without_any_credential_is_401() {
+    // /api/problems is the one endpoint a read token can reach. With no credential at
+    // all it must still 401 — the token widens who may read, never whether auth applies.
+    let res = app()
+        .oneshot(Request::get("/api/problems").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn problems_with_a_wrong_read_token_is_401() {
+    let res = app()
+        .oneshot(
+            Request::get("/api/problems")
+                .header("authorization", "Bearer not-the-read-token-xxxxxx")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn problems_with_a_valid_read_token_passes_auth() {
+    // Auth must succeed and let the handler run (it then fails on the dud pool — a 5xx,
+    // NOT a 401). That distinction is the whole assertion: the poller got through.
+    let res = app()
+        .oneshot(
+            Request::get("/api/problems")
+                .header("authorization", "Bearer read-token-0123456789abcdef")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn a_read_token_cannot_reach_any_other_endpoint() {
+    // Least privilege, and the test that keeps it that way: the phone's token opens
+    // /api/problems and nothing else. If someone later swaps another handler to
+    // `Reader`, this fails.
+    for path in ["/api/overview", "/api/reports", "/api/history"] {
+        let res = app()
+            .oneshot(
+                Request::get(path)
+                    .header("authorization", "Bearer read-token-0123456789abcdef")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "{path} must stay session-only"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_producer_ingest_token_is_not_a_read_token() {
+    // The two token sets are separate namespaces. A producer's write token must not
+    // become a read credential just because both arrive as `Authorization: Bearer`.
+    let res = app()
+        .oneshot(
+            Request::get("/api/problems")
+                .header("authorization", "Bearer secret-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);

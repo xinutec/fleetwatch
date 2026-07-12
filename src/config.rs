@@ -22,6 +22,18 @@ pub struct Config {
     /// write as itself and never spoof another machine's status.
     pub tokens: Vec<(String, String)>,
 
+    /// Read tokens: bearer credentials that may GET `/api/problems` *only*.
+    ///
+    /// For unattended readers that cannot do an interactive Nextcloud login — the
+    /// Android app's background poller, which wakes every 30 min to ask "is anything
+    /// wrong?" and raise a notification. Reusing its WebView's NC session cookie would
+    /// work until the session quietly expired, and a monitor that fails silently is
+    /// the exact failure it exists to catch.
+    ///
+    /// Deliberately not a general read credential: it opens the one endpoint a poller
+    /// needs, so a leaked phone token cannot walk the fleet's whole report history.
+    pub read_tokens: Vec<String>,
+
     /// Raw report payloads are pruned after this many days (kept for
     /// schema-evolution replays + debugging). The derived `check` rows and the
     /// report summaries live far longer — see `report::retention`.
@@ -87,6 +99,33 @@ pub fn parse_tokens(raw: &str) -> Result<Vec<(String, String)>> {
     Ok(out)
 }
 
+/// Minimum accepted read-token length. These are opaque random strings, not
+/// passwords; anything short enough to guess is a misconfiguration, not a choice.
+pub const MIN_READ_TOKEN_LEN: usize = 24;
+
+/// Parse `FLEETWATCH_READ_TOKENS` — a comma-separated list of opaque bearer tokens
+/// (no `source:` prefix: a reader has no identity to stamp, it only reads). Unset or
+/// empty is fine and means "no unattended readers", which is the safe default.
+/// A too-short token is a hard error so a weak secret fails at boot, not silently.
+pub fn parse_read_tokens(raw: &str) -> Result<Vec<String>> {
+    let mut out = Vec::new();
+    for entry in raw.split(',') {
+        let token = entry.trim();
+        if token.is_empty() {
+            continue;
+        }
+        if token.len() < MIN_READ_TOKEN_LEN {
+            anyhow::bail!(
+                "a FLEETWATCH_READ_TOKENS entry is too short ({} chars) — use at least \
+                 {MIN_READ_TOKEN_LEN} (e.g. `openssl rand -hex 32`)",
+                token.len()
+            );
+        }
+        out.push(token.to_string());
+    }
+    Ok(out)
+}
+
 /// Minimum accepted `SESSION_SECRET` length. 32 chars ≈ 256 bits of key material.
 pub const MIN_SESSION_SECRET_LEN: usize = 32;
 
@@ -147,6 +186,7 @@ impl Config {
             bind_addr: env_or("BIND_ADDR", "0.0.0.0:8080"),
             static_dir,
             tokens,
+            read_tokens: parse_read_tokens(&env_or("FLEETWATCH_READ_TOKENS", ""))?,
             raw_retention_days: env_i64("FLEETWATCH_RAW_RETENTION_DAYS", 30)?,
             check_retention_days: env_i64("FLEETWATCH_CHECK_RETENTION_DAYS", 400)?,
             session_secret,

@@ -130,6 +130,32 @@ where
     }
 }
 
+/// Extractor: a *reader* — either a logged-in human (session cookie) or an
+/// unattended poller holding a read token. Rejects with 401 otherwise.
+///
+/// Only `/api/problems` uses this. The human dashboard stays behind the Nextcloud
+/// login; the read token exists solely so the Android app can ask "is anything wrong?"
+/// from the background, where an interactive SSO is impossible.
+pub struct Reader;
+
+impl<S> FromRequestParts<S> for Reader
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let app = AppState::from_ref(state);
+        if crate::auth::authenticate_read(&parts.headers, &app.cfg.read_tokens) {
+            return Ok(Reader);
+        }
+        // Fall back to the human session, so the browser UI keeps working unchanged.
+        AuthUser::from_request_parts(parts, state).await?;
+        Ok(Reader)
+    }
+}
+
 /// Delete expired session rows. Expiry is otherwise only enforced lazily when
 /// the same cookie is presented again, so abandoned sessions would accumulate
 /// forever. Called at boot + hourly (see main.rs). Sessions are dead auth

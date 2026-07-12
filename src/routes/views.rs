@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::error::AppError;
 use crate::report::repo;
 use crate::report::types::{History, OverviewEntry, Problems, ReportDetail, ReportSummary};
-use crate::session::AuthUser;
+use crate::session::{AuthUser, Reader};
 use crate::state::AppState;
 
 /// GET /api/overview — one tile per (source, collector) with its latest rollup.
@@ -23,8 +23,13 @@ pub async fn overview(
 }
 
 /// GET /api/problems — failing/warning checks + overdue/silent collectors.
+///
+/// The one read endpoint a *read token* can reach (`Reader`, not `AuthUser`): the
+/// Android app polls it from the background to decide whether to raise a notification,
+/// and a background worker can't complete an interactive Nextcloud login. Everything
+/// else here stays session-only.
 pub async fn problems(
-    _user: AuthUser,
+    _reader: Reader,
     State(app): State<AppState>,
 ) -> Result<Json<Problems>, AppError> {
     Ok(Json(repo::problems(&app.pool).await?))
