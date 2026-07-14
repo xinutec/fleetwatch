@@ -1,4 +1,4 @@
-<section class="page">
+<section>
   <header class="head">
     <h2>{{ label() }}</h2>
     <span class="sub tnum">{{ source() }} · {{ collector() }} · {{ section() }}</span>
@@ -79,7 +79,7 @@
           <span class="dot" [class]="p.verdict"></span>
           <span class="pat tnum">{{ p.collected_at | date: 'MMM d, HH:mm' }}</span>
           @if (p.value !== null) {
-            <span class="pval tnum">{{ fmt(p.value, d.unit) }}</span>
+            <span class="tnum">{{ fmt(p.value, d.unit) }}</span>
           }
           <span class="pverdict">{{ p.verdict }}</span>
         </div>
