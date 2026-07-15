@@ -122,12 +122,19 @@ pub struct OverviewEntry {
     #[ts(type = "number | null")]
     pub interval_s: Option<u64>,
     pub freshness: Freshness,
-    /// Worst verdict among the report's checks (drives the tile colour).
+    /// Worst verdict among the report's *unmuted* checks (drives the tile colour):
+    /// a tile whose only failure is muted is not red.
     pub worst: Verdict,
     pub pass: u32,
+    /// `warn`/`fail` are the *live* counts — muted checks are subtracted out and
+    /// surfaced in `muted` instead, so a green tile never also shows a red pill.
+    /// The true stored counts remain in the report itself.
     pub warn: u32,
     pub fail: u32,
     pub skip: u32,
+    /// Fail/warn checks currently suppressed by a live mute.
+    pub muted: u32,
+    /// Every check in the report, muted or not (`pass + warn + fail + skip + muted`).
     pub total: u32,
 }
 
@@ -150,13 +157,69 @@ pub struct ProblemCheck {
     pub collected_at: DateTime<Utc>,
 }
 
-/// The problems view: what's wrong right now — failing/warning checks plus
-/// collectors that have gone silent/overdue (which no check can express).
+/// A failing/warning check that a live mute is currently suppressing. Shown in
+/// its own section so a deliberate silence stays visible (not vanished), with
+/// the reason and when it lapses.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct MutedCheck {
+    pub source: String,
+    pub collector: String,
+    pub report_id: String,
+    pub section: String,
+    pub label: String,
+    pub subject: Option<String>,
+    pub verdict: Verdict,
+    pub observed: Option<String>,
+    #[serde(rename = "ref")]
+    pub doc_ref: Option<String>,
+    #[ts(type = "string")]
+    pub collected_at: DateTime<Utc>,
+    pub mute_id: String,
+    pub reason: String,
+    #[ts(type = "string")]
+    pub expires_at: DateTime<Utc>,
+}
+
+/// The problems view: what's wrong right now — failing/warning checks, the ones
+/// a live mute is suppressing (kept visible, not notified), plus collectors that
+/// have gone silent/overdue (which no check can express).
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]
 pub struct Problems {
     pub checks: Vec<ProblemCheck>,
+    pub muted: Vec<MutedCheck>,
     pub stale: Vec<OverviewEntry>,
+}
+
+/// A live suppression of one check identity `(source, collector, label)`. Always
+/// has a reason and a hard expiry — see migrations/0003_mutes.sql.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Mute {
+    pub id: String,
+    pub source: String,
+    pub collector: String,
+    pub label: String,
+    pub reason: String,
+    pub created_by: String,
+    #[ts(type = "string")]
+    pub created_at: DateTime<Utc>,
+    #[ts(type = "string")]
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Request body to create a mute. The server stamps `created_by` from the
+/// session and computes `expires_at` from `ttl_hours` (a mute cannot be
+/// permanent), so neither is client-supplied.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct NewMute {
+    pub source: String,
+    pub collector: String,
+    pub label: String,
+    pub reason: String,
+    pub ttl_hours: u32,
 }
 
 /// A check as rendered in a report's detail view.

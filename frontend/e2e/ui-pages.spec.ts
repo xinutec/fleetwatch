@@ -17,6 +17,7 @@ import {
 
 const now = new Date('2026-07-03T20:00:00Z');
 const ago = (s: number): string => new Date(now.getTime() - s * 1000).toISOString();
+const inHours = (h: number): string => new Date(now.getTime() + h * 3600 * 1000).toISOString();
 
 const OVERVIEW = [
   {
@@ -57,6 +58,15 @@ const PROBLEMS = {
       observed:
         '/build/example/frontend/src/app/features/controllers/controller-list.component.scss:42',
       expected: null, ref: null, collected_at: ago(660),
+    },
+  ],
+  muted: [
+    {
+      source: 'amun', collector: 'vpn-nodes', report_id: 'r5', section: 'wireguard',
+      label: 'bes', subject: null, verdict: 'fail',
+      observed: 'stale: last handshake 1d16h ago', ref: null, collected_at: ago(300),
+      mute_id: '01J0MUTE0000000000000BES0', reason: 'Pi powered off — enough thermometer data from other devices',
+      expires_at: inHours(20),
     },
   ],
   stale: [OVERVIEW[2]],
@@ -123,7 +133,13 @@ test('problems — checks + stale list: lays out cleanly @ phone width', async (
   await mockApi(page);
   await page.goto('/problems');
   await page.getByText('root filesystem usage', { exact: false }).first().waitFor();
-  await expectNoTextOverlaps(page, testInfo);
+  // Scope to the scrolling content: with the mute actions + a muted section this
+  // page is taller than the phone screen, so its lower rows sit UNDER the opaque
+  // fixed bottom nav at scroll 0. That is normal (you scroll to reach them), but a
+  // whole-body scan reads nav-label-over-content as a collision — the occlusion
+  // false positive the harness documents for overlays. `main` excludes the nav
+  // while still catching any real overlap within the content.
+  await expectNoTextOverlaps(page, testInfo, 'main');
   await expectNoHorizontalOverflow(page, testInfo);
 });
 

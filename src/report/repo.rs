@@ -6,16 +6,22 @@
 //! on the DB session timezone. Ages are computed in Rust against `Utc::now()`.
 
 use anyhow::Result;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use sqlx::MySqlPool;
 use ulid::Ulid;
 
 use super::staleness::freshness;
 use super::types::{
-    CheckOut, CheckUpload, Freshness, History, HistoryPoint, IngestAck, OverviewEntry,
-    ProblemCheck, Problems, ReportDetail, ReportSummary, ReportUpload, SCHEMA, Verdict,
+    CheckOut, CheckUpload, Freshness, History, HistoryPoint, IngestAck, Mute, MutedCheck, NewMute,
+    OverviewEntry, ProblemCheck, Problems, ReportDetail, ReportSummary, ReportUpload, SCHEMA,
+    Verdict,
 };
 use crate::error::AppError;
+
+/// A mute's time-to-live is clamped to this range: at least an hour (a shorter
+/// mute isn't worth recording) and at most 90 days (nothing stays silenced for a
+/// season without a human re-deciding).
+const MUTE_TTL_HOURS: std::ops::RangeInclusive<u32> = 1..=24 * 90;
 
 /// Validate + store one uploaded report under `source` (from the token). Returns
 /// an ack marking whether this was a fresh store or an idempotent replay.
@@ -183,19 +189,49 @@ struct LatestRow {
     n_warn: u32,
     n_fail: u32,
     n_skip: u32,
+    /// Fail/warn checks in this report whose identity has a live mute. Computed
+    /// by the query (0 when nothing is muted) — the tile discounts these so a
+    /// deliberately-silenced fault does not keep it red.
+    muted_fail: u32,
+    muted_warn: u32,
 }
 
 /// Latest report per (source, collector) → one overview tile each, newest first
 /// by source/collector name. Freshness is computed here against the wall clock.
+///
+/// The LEFT JOIN counts, per latest report, how many of its fail/warn checks are
+/// covered by a live mute; the tile's `worst` is computed against the unmuted
+/// remainder so a muted-only failure shows green (with a "muted" marker), while
+/// the raw `fail`/`warn` counts stay the true stored numbers.
 pub async fn overview(pool: &MySqlPool) -> Result<Vec<OverviewEntry>> {
     let rows: Vec<LatestRow> = sqlx::query_as(
-        "SELECT id, source, collector, collected_at, interval_s, n_pass, n_warn, n_fail, n_skip \
+        // SUM over a boolean is DECIMAL in MariaDB; CAST back to UNSIGNED so the
+        // column decodes into u32.
+        "SELECT x.id, x.source, x.collector, x.collected_at, x.interval_s, \
+                x.n_pass, x.n_warn, x.n_fail, x.n_skip, \
+                CAST(COALESCE(m.muted_fail, 0) AS UNSIGNED) AS muted_fail, \
+                CAST(COALESCE(m.muted_warn, 0) AS UNSIGNED) AS muted_warn \
          FROM ( \
            SELECT r.*, ROW_NUMBER() OVER \
              (PARTITION BY source, collector ORDER BY collected_at DESC, id DESC) rn \
            FROM report r \
-         ) x WHERE rn = 1 ORDER BY source, collector",
+         ) x \
+         LEFT JOIN ( \
+           SELECT c.report_id, \
+                  SUM(c.verdict = 'fail') AS muted_fail, \
+                  SUM(c.verdict = 'warn') AS muted_warn \
+           FROM check_result c \
+           JOIN mute mu ON mu.source = c.source AND mu.collector = c.collector \
+                       AND mu.label = c.label AND mu.expires_at > ? \
+           WHERE c.verdict IN ('fail', 'warn') \
+           GROUP BY c.report_id \
+         ) m ON m.report_id = x.id \
+         WHERE x.rn = 1 ORDER BY x.source, x.collector",
     )
+    // Bind UTC now rather than SQL NOW(3): the DB server clock is local, and the
+    // stored timestamps are UTC — comparing them in SQL would offset the mute
+    // window by the server's timezone. (Same invariant as the rest of this file.)
+    .bind(Utc::now().naive_utc())
     .fetch_all(pool)
     .await?;
 
@@ -206,6 +242,11 @@ pub async fn overview(pool: &MySqlPool) -> Result<Vec<OverviewEntry>> {
 fn overview_entry(now: &DateTime<Utc>, r: LatestRow) -> OverviewEntry {
     let collected = r.collected_at.and_utc();
     let age_s = (*now - collected).num_seconds();
+    // Carve muted fail/warn out of the live counts: the tile colour and its
+    // warn/fail pills reflect only unmuted checks, with the muted ones shown
+    // separately. The report's own stored counts stay the untouched truth.
+    let live_fail = r.n_fail.saturating_sub(r.muted_fail);
+    let live_warn = r.n_warn.saturating_sub(r.muted_warn);
     OverviewEntry {
         source: r.source,
         collector: r.collector,
@@ -214,11 +255,12 @@ fn overview_entry(now: &DateTime<Utc>, r: LatestRow) -> OverviewEntry {
         age_s,
         interval_s: r.interval_s,
         freshness: freshness(age_s, r.interval_s),
-        worst: worst_of(r.n_fail, r.n_warn, r.n_pass),
+        worst: worst_of(live_fail, live_warn, r.n_pass),
         pass: r.n_pass,
-        warn: r.n_warn,
-        fail: r.n_fail,
+        warn: live_warn,
+        fail: live_fail,
         skip: r.n_skip,
+        muted: r.muted_fail + r.muted_warn,
         total: r.n_pass + r.n_warn + r.n_fail + r.n_skip,
     }
 }
@@ -241,6 +283,11 @@ struct ProblemRow {
 /// The problems view: every failing/warning check from each collector's latest
 /// report, plus collectors whose latest report has gone overdue/silent (which no
 /// check can express — a dead producer emits nothing).
+///
+/// A check whose identity has a live mute is moved out of `checks` (so the
+/// notifier stays quiet) into `muted` (kept visible, with reason + expiry). The
+/// mute is matched in Rust against the active-mute set rather than a SQL join, so
+/// two overlapping mutes on one identity can't duplicate a row.
 pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
     let rows: Vec<ProblemRow> = sqlx::query_as(
         "WITH latest AS ( \
@@ -259,24 +306,56 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
     .fetch_all(pool)
     .await?;
 
-    let checks = rows
-        .into_iter()
-        .map(|r| -> Result<ProblemCheck> {
-            Ok(ProblemCheck {
-                source: r.source,
-                collector: r.collector,
-                report_id: r.report_id,
-                section: r.section,
-                label: r.label,
-                subject: r.subject,
-                verdict: parse_verdict(&r.verdict)?,
-                observed: r.observed,
-                expected: r.expected,
-                doc_ref: r.doc_ref,
-                collected_at: r.collected_at.and_utc(),
+    // The active-mute set, keyed by identity → the mute that expires latest.
+    let mutes = list_mutes(pool).await?;
+    let mut by_id: std::collections::HashMap<(&str, &str, &str), &Mute> =
+        std::collections::HashMap::new();
+    for m in &mutes {
+        by_id
+            .entry((&m.source, &m.collector, &m.label))
+            .and_modify(|cur| {
+                if m.expires_at > cur.expires_at {
+                    *cur = m;
+                }
             })
-        })
-        .collect::<Result<Vec<_>>>()?;
+            .or_insert(m);
+    }
+
+    let mut checks = Vec::new();
+    let mut muted = Vec::new();
+    for r in &rows {
+        let verdict = parse_verdict(&r.verdict)?;
+        match by_id.get(&(r.source.as_str(), r.collector.as_str(), r.label.as_str())) {
+            Some(m) => muted.push(MutedCheck {
+                source: r.source.clone(),
+                collector: r.collector.clone(),
+                report_id: r.report_id.clone(),
+                section: r.section.clone(),
+                label: r.label.clone(),
+                subject: r.subject.clone(),
+                verdict,
+                observed: r.observed.clone(),
+                doc_ref: r.doc_ref.clone(),
+                collected_at: r.collected_at.and_utc(),
+                mute_id: m.id.clone(),
+                reason: m.reason.clone(),
+                expires_at: m.expires_at,
+            }),
+            None => checks.push(ProblemCheck {
+                source: r.source.clone(),
+                collector: r.collector.clone(),
+                report_id: r.report_id.clone(),
+                section: r.section.clone(),
+                label: r.label.clone(),
+                subject: r.subject.clone(),
+                verdict,
+                observed: r.observed.clone(),
+                expected: r.expected.clone(),
+                doc_ref: r.doc_ref.clone(),
+                collected_at: r.collected_at.and_utc(),
+            }),
+        }
+    }
 
     let stale = overview(pool)
         .await?
@@ -284,7 +363,117 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
         .filter(|e| e.freshness != Freshness::Fresh)
         .collect();
 
-    Ok(Problems { checks, stale })
+    Ok(Problems {
+        checks,
+        muted,
+        stale,
+    })
+}
+
+/// Create a mute. `created_by` comes from the session; `expires_at` is derived
+/// from `ttl_hours` (clamped) — a mute cannot be permanent. Identity fields and
+/// the reason must be non-empty: an unattributable or unbounded mute is exactly
+/// the silent blind spot this feature exists to avoid.
+pub async fn create_mute(
+    pool: &MySqlPool,
+    new: &NewMute,
+    created_by: &str,
+) -> Result<Mute, AppError> {
+    let source = new.source.trim();
+    let collector = new.collector.trim();
+    let label = new.label.trim();
+    let reason = new.reason.trim();
+    if source.is_empty() || collector.is_empty() || label.is_empty() {
+        return Err(AppError::BadRequest(
+            "source, collector and label are required".into(),
+        ));
+    }
+    if reason.is_empty() {
+        return Err(AppError::BadRequest("a reason is required".into()));
+    }
+    let ttl = new
+        .ttl_hours
+        .clamp(*MUTE_TTL_HOURS.start(), *MUTE_TTL_HOURS.end());
+
+    let id = Ulid::new().to_string();
+    let created_at = Utc::now();
+    let expires_at = created_at + Duration::hours(ttl as i64);
+
+    sqlx::query(
+        "INSERT INTO mute (id, source, collector, label, reason, created_by, created_at, expires_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(source)
+    .bind(collector)
+    .bind(label)
+    .bind(reason)
+    .bind(created_by)
+    .bind(created_at.naive_utc())
+    .bind(expires_at.naive_utc())
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    Ok(Mute {
+        id,
+        source: source.to_string(),
+        collector: collector.to_string(),
+        label: label.to_string(),
+        reason: reason.to_string(),
+        created_by: created_by.to_string(),
+        created_at,
+        expires_at,
+    })
+}
+
+#[derive(sqlx::FromRow)]
+struct MuteRow {
+    id: String,
+    source: String,
+    collector: String,
+    label: String,
+    reason: String,
+    created_by: String,
+    created_at: NaiveDateTime,
+    expires_at: NaiveDateTime,
+}
+
+/// Every mute that is still live (not yet expired), newest first. Lapsed mutes
+/// stay in the table as an audit trail but are never returned or applied.
+pub async fn list_mutes(pool: &MySqlPool) -> Result<Vec<Mute>> {
+    let rows: Vec<MuteRow> = sqlx::query_as(
+        "SELECT id, source, collector, label, reason, created_by, created_at, expires_at \
+         FROM mute WHERE expires_at > ? ORDER BY created_at DESC",
+    )
+    // UTC now, not SQL NOW(3) — see the note in `overview`.
+    .bind(Utc::now().naive_utc())
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| Mute {
+            id: r.id,
+            source: r.source,
+            collector: r.collector,
+            label: r.label,
+            reason: r.reason,
+            created_by: r.created_by,
+            created_at: r.created_at.and_utc(),
+            expires_at: r.expires_at.and_utc(),
+        })
+        .collect())
+}
+
+/// Delete a mute early (unmute). Returns whether a row existed. The suppressed
+/// problem reappears on the next read immediately — mutes are read-time overlays.
+pub async fn delete_mute(pool: &MySqlPool, id: &str) -> Result<bool> {
+    let res = sqlx::query("DELETE FROM mute WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected() > 0)
 }
 
 #[derive(sqlx::FromRow)]

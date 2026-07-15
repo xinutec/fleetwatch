@@ -158,9 +158,31 @@ All under `/api`, plus `/healthz`. Types shared Rust→TS via ts-rs (life patter
 | `GET /api/reports?source&collector&limit` | Report list (history of runs). |
 | `GET /api/reports/:id` | One report with all checks, grouped by section — the CLI-output-mirror view. |
 | `GET /api/history?source&collector&section&label&from&to` | Time series for one check: `(collected_at, verdict, value)` tuples. Feeds sparklines/charts and "since when is this red". |
+| `GET /api/mutes` · `POST /api/mutes` · `DELETE /api/mutes/:id` | Expiring mutes (see below). Session-only (`AuthUser`) — a mute is an accountable human decision, so the read token can't create one and `created_by` is stamped from the session. |
 
 Ingest validation is strict (unknown verdicts, missing fields, unknown `schema` →
 422 with a reason). Producers are ours; failing loudly beats storing junk.
+
+### Mutes (deliberate, expiring suppression)
+
+Some failures are expected: a Pi powered off on purpose, a host down for
+maintenance. Its check honestly keeps reporting `fail` — the producer's verdict is
+a fact, never rewritten. A **mute** is a read-time overlay keyed on a check's
+identity `(source, collector, label)`:
+
+- `GET /api/problems` moves a muted check out of `checks` (so the Android poller
+  stays quiet) into a separate `muted` list — kept visible, with its reason and
+  expiry, so a silence is never invisible.
+- `GET /api/overview` subtracts muted fail/warn from a tile's live counts and its
+  `worst` verdict, so a muted-only failure shows green with a "muted" marker
+  rather than staying permanently red.
+
+Every mute **must expire** (`expires_at NOT NULL`, TTL clamped to 1h–90d) and
+carries a mandatory `reason` + `created_by`: intentional silence that cannot rot
+into a forgotten blind spot. When it lapses the problem simply reappears — no
+reticketing. Deleting a mute (unmute) restores the problem on the next read.
+Because it is a pure overlay, stored history and the report rollups are never
+touched: the truth stays queryable and the mute is auditable.
 
 ### Staleness (first-class)
 

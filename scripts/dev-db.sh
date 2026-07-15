@@ -15,7 +15,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATADIR="$ROOT/.dev/mysql"
 SOCKET="$ROOT/.dev/mysqld.sock"
 INIT_SQL="$ROOT/.dev/init.sql"
-PORT=3307
+# Override when 3307 is taken by another project's dev-db (life/coach share this
+# pattern): FLEETWATCH_DEV_DB_PORT=3310 ./scripts/dev-db.sh
+PORT="${FLEETWATCH_DEV_DB_PORT:-3307}"
 
 mkdir -p "$ROOT/.dev"
 
@@ -33,5 +35,9 @@ FLUSH PRIVILEGES;
 SQL
 
 echo "Serving MariaDB on 127.0.0.1:$PORT (db: fleetwatch) — Ctrl-C to stop"
+# --skip-name-resolve: match connections by numeric IP so the '127.0.0.1' grant
+# always applies. Without it MariaDB reverse-resolves 127.0.0.1 to 'localhost'
+# and denies the fleetwatch user (host mismatch).
 exec mariadbd --no-defaults --datadir="$DATADIR" --socket="$SOCKET" \
-    --port="$PORT" --bind-address=127.0.0.1 --init-file="$INIT_SQL"
+    --port="$PORT" --bind-address=127.0.0.1 --skip-name-resolve \
+    --init-file="$INIT_SQL"

@@ -50,6 +50,9 @@
                 @if (c.skip > 0) {
                   <span class="pill skip">{{ c.skip }} skip</span>
                 }
+                @if (c.muted > 0) {
+                  <span class="pill skip">{{ c.muted }} muted</span>
+                }
               </div>
               <div class="age tnum">{{ formatAge(c.age_s) }}</div>
             </mat-card-content>

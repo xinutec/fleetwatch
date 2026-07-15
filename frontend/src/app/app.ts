@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { BUILD_INFO } from './build-info';
 import { Problems } from './models';
 
-const EMPTY_PROBLEMS: Problems = { checks: [], stale: [] };
+const EMPTY_PROBLEMS: Problems = { checks: [], muted: [], stale: [] };
 
 @Component({
   selector: 'app-root',

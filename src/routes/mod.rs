@@ -4,10 +4,11 @@
 
 pub mod auth;
 pub mod ingest;
+pub mod mutes;
 pub mod views;
 
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
@@ -21,6 +22,8 @@ pub fn router(state: AppState) -> Router {
         .route("/overview", get(views::overview))
         .route("/problems", get(views::problems))
         .route("/history", get(views::history))
+        .route("/mutes", get(mutes::list).post(mutes::create))
+        .route("/mutes/{id}", delete(mutes::delete))
         // One INFO line per API request. Scoped to /api so static-asset serving
         // and the k8s /healthz probe don't spam the log.
         .layer(

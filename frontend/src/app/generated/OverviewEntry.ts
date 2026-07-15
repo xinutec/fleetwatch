@@ -7,6 +7,21 @@ import type { Verdict } from "./Verdict";
  */
 export type OverviewEntry = { source: string, collector: string, report_id: string, collected_at: string, age_s: number, interval_s: number | null, freshness: Freshness, 
 /**
- * Worst verdict among the report's checks (drives the tile colour).
+ * Worst verdict among the report's *unmuted* checks (drives the tile colour):
+ * a tile whose only failure is muted is not red.
  */
-worst: Verdict, pass: number, warn: number, fail: number, skip: number, total: number, };
+worst: Verdict, pass: number, 
+/**
+ * `warn`/`fail` are the *live* counts — muted checks are subtracted out and
+ * surfaced in `muted` instead, so a green tile never also shows a red pill.
+ * The true stored counts remain in the report itself.
+ */
+warn: number, fail: number, skip: number, 
+/**
+ * Fail/warn checks currently suppressed by a live mute.
+ */
+muted: number, 
+/**
+ * Every check in the report, muted or not (`pass + warn + fail + skip + muted`).
+ */
+total: number, };
