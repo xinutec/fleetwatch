@@ -41,27 +41,39 @@
   color: inherit;
 }
 
-// A problem row plus its mute action/form, grouped so the button sits with the
-// card it acts on.
-.item {
+// The navigable part of a problem card — dot + text. Scoped to this so the mute
+// button can be a real sibling button in the same row (a <button> can't live
+// inside the <a> that a whole-card link would make).
+.row-hit {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+}
 
-  .actions {
-    display: flex;
-    justify-content: flex-end;
+// Mute toggle: quiet by default, primary when its form is open (the icon also
+// flips to a close ×). Sits inline with the verdict pill — no extra row.
+.mute-btn {
+  flex: none;
+  color: var(--mat-sys-on-surface-variant);
+
+  &.active {
+    color: var(--mat-sys-primary);
   }
 }
 
+// Inline mute form: an inset panel under the row, inside the same card, so the
+// control stays with what it acts on without a separate box.
 .mute-form {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.6rem 0.75rem 0.75rem;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 0.5rem;
-  background: var(--mat-sys-surface-container-low);
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--mat-sys-outline-variant);
 
   .reason {
     width: 100%;

@@ -48,19 +48,19 @@
       <h3>Failing &amp; warning checks</h3>
       <div class="list">
         @for (c of d.checks; track keyOf(c)) {
-          <div class="item">
-            <a
-              class="row-link"
-              [routerLink]="['/history']"
-              [queryParams]="{
-                source: c.source,
-                collector: c.collector,
-                section: c.section,
-                label: c.label,
-              }"
-            >
-              <mat-card appearance="outlined" class="row" [class]="c.verdict">
-                <mat-card-content class="row-body">
+          <mat-card appearance="outlined" class="row" [class]="c.verdict">
+            <mat-card-content>
+              <div class="row-body">
+                <a
+                  class="row-hit"
+                  [routerLink]="['/history']"
+                  [queryParams]="{
+                    source: c.source,
+                    collector: c.collector,
+                    section: c.section,
+                    label: c.label,
+                  }"
+                >
                   <span class="dot" [class]="c.verdict"></span>
                   <div class="row-main">
                     <span class="title">{{ c.label }}</span>
@@ -74,54 +74,56 @@
                       <span class="ref tnum">{{ c.ref }}</span>
                     }
                   </div>
-                  <span class="pill" [class]="c.verdict">{{ c.verdict }}</span>
-                </mat-card-content>
-              </mat-card>
-            </a>
-
-            <div class="actions">
-              <button mat-button type="button" (click)="toggleMute(c)">
-                <mat-icon>notifications_off</mat-icon>
-                {{ openKey() === keyOf(c) ? 'Close' : 'Mute' }}
-              </button>
-            </div>
-
-            @if (openKey() === keyOf(c)) {
-              <div class="mute-form">
-                <input
-                  class="reason"
-                  type="text"
-                  placeholder="Why is this expected? (required)"
-                  [ngModel]="reason()"
-                  (ngModelChange)="reason.set($event)"
-                />
-                <div class="mute-row">
-                  <label>
-                    for
-                    <select
-                      class="ttl"
-                      [ngModel]="ttlHours()"
-                      (ngModelChange)="ttlHours.set(+$event)"
-                    >
-                      @for (d of durations; track d.hours) {
-                        <option [value]="d.hours">{{ d.label }}</option>
-                      }
-                    </select>
-                  </label>
-                  <span class="spacer"></span>
-                  <button mat-button type="button" (click)="toggleMute(c)">Cancel</button>
-                  <button
-                    mat-flat-button
-                    type="button"
-                    [disabled]="!reason().trim() || saving()"
-                    (click)="submitMute(c)"
-                  >
-                    Mute
-                  </button>
-                </div>
+                </a>
+                <span class="pill" [class]="c.verdict">{{ c.verdict }}</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="mute-btn"
+                  [class.active]="openKey() === keyOf(c)"
+                  [attr.aria-label]="openKey() === keyOf(c) ? 'Close mute form' : 'Mute this check'"
+                  (click)="toggleMute(c)"
+                >
+                  <mat-icon>{{ openKey() === keyOf(c) ? 'close' : 'notifications_off' }}</mat-icon>
+                </button>
               </div>
-            }
-          </div>
+
+              @if (openKey() === keyOf(c)) {
+                <div class="mute-form">
+                  <input
+                    class="reason"
+                    type="text"
+                    placeholder="Why is this expected? (required)"
+                    [ngModel]="reason()"
+                    (ngModelChange)="reason.set($event)"
+                  />
+                  <div class="mute-row">
+                    <label>
+                      for
+                      <select
+                        class="ttl"
+                        [ngModel]="ttlHours()"
+                        (ngModelChange)="ttlHours.set(+$event)"
+                      >
+                        @for (d of durations; track d.hours) {
+                          <option [value]="d.hours">{{ d.label }}</option>
+                        }
+                      </select>
+                    </label>
+                    <span class="spacer"></span>
+                    <button
+                      mat-flat-button
+                      type="button"
+                      [disabled]="!reason().trim() || saving()"
+                      (click)="submitMute(c)"
+                    >
+                      Mute
+                    </button>
+                  </div>
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
         }
       </div>
     }
