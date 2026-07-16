@@ -42,9 +42,16 @@ jobs:
       # The committed TS types + golden wire fixture must match the Rust types.
       # verify.sh gates this locally via the pre-commit hook, but a clone
       # without hooks could push drift — without this step CI would merge it.
+      # Plain file diffs, NOT `git diff`: in container jobs the index is written
+      # by the runner's mounted (newer) git and read here by the image's older
+      # one, which misreports a clean regeneration as wholesale deletions
+      # (observed 2026-07-16). Copies of the committed files need no index.
       - run: |
+          cp -r frontend/src/app/generated /tmp/committed-generated
+          cp tests/golden/problems.json /tmp/committed-problems.json
           scripts/gen-types.sh
-          git diff --exit-code -- frontend/src/app/generated tests/golden
+          diff -ru /tmp/committed-generated frontend/src/app/generated
+          diff -u /tmp/committed-problems.json tests/golden/problems.json
 
   fe-verify:
     permissions:
