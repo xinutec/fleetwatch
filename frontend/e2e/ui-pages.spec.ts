@@ -72,6 +72,22 @@ const PROBLEMS = {
   stale: [OVERVIEW[2]],
 };
 
+// A realistic trend: enough points for a line, mixed verdicts for the strip,
+// and a null-value run (the chart must skip it, the timeline must not).
+const HISTORY = {
+  source: 'mac-mini', collector: 'fleet-health', section: 'disk',
+  label: 'root filesystem usage above threshold', unit: '%',
+  points: [
+    ...Array.from({ length: 10 }, (_, i) => ({
+      collected_at: ago((12 - i) * 21600),
+      verdict: i === 7 ? 'warn' : 'pass',
+      value: 43 + i * 4,
+    })),
+    { collected_at: ago(2 * 21600), verdict: 'skip', value: null },
+    { collected_at: ago(21600), verdict: 'fail', value: 86 },
+  ],
+};
+
 const REPORT = {
   id: 'r2', source: 'mac-mini', collector: 'fleet-health', schema: 1,
   collected_at: ago(660), received_at: ago(659), duration_ms: 4210, interval_s: 3600, ok: false,
@@ -109,8 +125,7 @@ async function mockApi(page: Page): Promise<void> {
   await page.route('**/api/problems', (r) => r.fulfill({ json: PROBLEMS }));
   await page.route('**/api/reports/*', (r) => r.fulfill({ json: REPORT }));
   await page.route('**/api/history*', (r) =>
-    r.fulfill({ json: { source: 'mac-mini', collector: 'fleet-health', section: 'disk',
-      label: 'root filesystem usage', unit: '%', points: [] } }),
+    r.fulfill({ json: HISTORY }),
   );
 }
 
@@ -139,6 +154,26 @@ test('problems — checks + stale list: lays out cleanly @ phone width', async (
   // whole-body scan reads nav-label-over-content as a collision — the occlusion
   // false positive the harness documents for overlays. `main` excludes the nav
   // while still catching any real overlap within the content.
+  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectNoHorizontalOverflow(page, testInfo);
+});
+
+test('problems — open mute form: lays out cleanly @ phone width', async ({ page }, testInfo) => {
+  await mockApi(page);
+  await page.goto('/problems');
+  await page.getByRole('button', { name: 'Mute this check' }).first().click();
+  await page.getByText('Why is this expected?').waitFor();
+  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectNoHorizontalOverflow(page, testInfo);
+});
+
+test('history — chart + runs: lays out cleanly @ phone width', async ({ page }, testInfo) => {
+  await mockApi(page);
+  await page.goto(
+    '/history?source=mac-mini&collector=fleet-health&section=disk' +
+      '&label=root+filesystem+usage+above+threshold',
+  );
+  await page.getByText('Verdict timeline').waitFor();
   await expectNoTextOverlaps(page, testInfo, 'main');
   await expectNoHorizontalOverflow(page, testInfo);
 });

@@ -34,22 +34,49 @@
             role="img"
             [attr.aria-label]="'trend of ' + label()"
           >
+            @for (g of ch.grid; track g.value) {
+              <line class="grid" x1="0" [attr.x2]="w" [attr.y1]="g.y" [attr.y2]="g.y" />
+            }
             <path class="line" [attr.d]="ch.path" />
             @for (dt of ch.dots; track $index) {
               <circle
                 class="pt"
                 [class]="dt.verdict"
+                [class.sel]="selected()?.at === dt.at"
                 [attr.cx]="dt.x"
                 [attr.cy]="dt.y"
-                r="2.5"
+                [attr.r]="selected()?.at === dt.at ? 4 : 2.5"
               >
                 <title>{{ fmt(dt.value, d.unit) }} — {{ dt.at | date: 'MMM d, HH:mm' }}</title>
               </circle>
+              <!-- Invisible, finger-sized tap target over each dot: a 2.5px dot
+                   is not tappable, and SVG title tooltips need a hover. -->
+              <circle
+                class="hit"
+                role="button"
+                tabindex="0"
+                [attr.aria-label]="fmt(dt.value, d.unit) + ' at ' + dt.at"
+                [attr.cx]="dt.x"
+                [attr.cy]="dt.y"
+                r="9"
+                (click)="select(dt)"
+                (keyup.enter)="select(dt)"
+              />
             }
           </svg>
-          <div class="yaxis tnum">
-            <span>{{ fmt(ch.max, d.unit) }}</span>
-            <span>{{ fmt(ch.min, d.unit) }}</span>
+          <!-- Caption: the y-range at rest, the tapped point's reading when one
+               is selected. -->
+          <div class="caption tnum">
+            @if (selected(); as s) {
+              <span class="dot" [class]="s.verdict"></span>
+              <span>{{ fmt(s.value, d.unit) }} · {{ s.at | date: 'MMM d, HH:mm' }}</span>
+            } @else {
+              <span>{{ fmt(ch.min, d.unit) }} – {{ fmt(ch.max, d.unit) }}</span>
+            }
+          </div>
+          <div class="xaxis tnum">
+            <span>{{ ch.fromMs | date: 'MMM d, HH:mm' }}</span>
+            <span>{{ ch.toMs | date: 'MMM d, HH:mm' }}</span>
           </div>
         </mat-card-content>
       </mat-card>

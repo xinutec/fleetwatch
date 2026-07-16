@@ -37,6 +37,11 @@
   width: 100%;
   height: 120px;
 
+  .grid {
+    stroke: var(--mat-sys-outline-variant);
+    stroke-width: 0.5;
+    vector-effect: non-scaling-stroke;
+  }
   .line {
     fill: none;
     stroke: var(--mat-sys-primary);
@@ -48,10 +53,27 @@
     &.pass { fill: var(--v-pass); }
     &.warn { fill: var(--v-warn); }
     &.fail { fill: var(--v-fail); }
+    &.sel { stroke: var(--mat-sys-on-surface); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  }
+  .hit {
+    fill: transparent;
+    cursor: pointer;
+    outline: none;
   }
 }
 
-.yaxis {
+.caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-small);
+  margin-top: 0.2rem;
+  min-height: 1rem;
+}
+
+.xaxis {
   display: flex;
   justify-content: space-between;
   color: var(--mat-sys-on-surface-variant);
