@@ -67,7 +67,7 @@ describe('Problems (mute flow)', () => {
   it('opens the mute form with fresh fields, and toggles it closed', () => {
     cmp.reason.set('leftover');
     cmp.toggleMute(CHECK);
-    expect(cmp.openKey()).toBe('mac-mini fleet-health disk');
+    expect(cmp.openKey()).toBe(cmp.keyOf(CHECK)); // identity, not encoding
     expect(cmp.reason()).toBe(''); // a stale reason must not carry over
     cmp.toggleMute(CHECK);
     expect(cmp.openKey()).toBeNull();
@@ -110,7 +110,7 @@ describe('Problems (mute flow)', () => {
     cmp.submitMute(CHECK);
     http.expectOne('/api/mutes').flush('nope', { status: 422, statusText: 'Unprocessable' });
     await drain();
-    expect(cmp.openKey()).toBe('mac-mini fleet-health disk');
+    expect(cmp.openKey()).toBe(cmp.keyOf(CHECK)); // identity, not encoding
     expect(cmp.saving()).toBe(false); // the button is usable again
     // A silent failure would read as "muted" while the alert keeps firing.
     expect(snack).toHaveBeenCalledWith('Could not save the mute', 'Dismiss', expect.anything());

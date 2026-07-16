@@ -1,13 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { httpResource } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatIconModule } from '@angular/material/icon';
 
 import { BUILD_INFO } from './build-info';
-import { Problems } from './models';
-
-const EMPTY_PROBLEMS: Problems = { checks: [], muted: [], stale: [] };
+import { ProblemsStore } from './problems-store';
 
 @Component({
   selector: 'app-root',
@@ -19,15 +16,9 @@ const EMPTY_PROBLEMS: Problems = { checks: [], muted: [], stale: [] };
 export class App {
   readonly build = BUILD_INFO;
 
-  // Standing badge on the Problems tab: how many issues are open right now
-  // (failing/warning checks + overdue/silent collectors). Default-valued so the
-  // badge stays hidden (count 0) while loading or on error.
-  private problems = httpResource<Problems>(() => '/api/problems', {
-    defaultValue: EMPTY_PROBLEMS,
-  });
-  readonly problemCount = computed(
-    () => this.problems.value().checks.length + this.problems.value().stale.length,
-  );
+  // Standing badge on the Problems tab, fed by the shared store — the same
+  // resource the problems page shows and refreshes, so the badge stays live.
+  readonly problemCount = inject(ProblemsStore).count;
 
   // The nav is a bottom tab bar on phones, a left rail from tablet up.
   readonly tabs = signal([
