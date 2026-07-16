@@ -1,11 +1,10 @@
 # fleetwatch — fleet monitoring platform
 
-Design doc, 2026-07-03. Status: **milestone 1 built + DEPLOYED** — the platform
-(service + schema + ingest/query API + VPN-only manifests + Angular UI + Android
-wrapper) is live on isis at `https://fleetwatch.xinutec.org` (VPN-only, TLS issued),
-end-to-end verified (token-authed ingest → query). Milestones 2+ (the Mac producer
-with `--json` emitters and the launchd pusher) are not yet built, so the only data
-so far is a manual smoke-test report; see §9.
+Design doc, 2026-07-03; status 2026-07-16: **all milestones built and live** on
+isis at `https://fleetwatch.xinutec.org` — token-authed ingest, Nextcloud-login
+reads, retention, mutes, the full UI, the Android wrapper + poller, and six Mac
+producers pushing on launchd timers. What follows records the design decisions;
+resolutions are marked in place.
 
 ## 1. Goal
 
@@ -31,7 +30,7 @@ Two roles, deliberately separated:
   webhook. Dead-man alerting stays on healthchecks.io.
   **Superseded in part (2026-07-12):** the Android app now *pulls* — a background
   worker polls `GET /api/problems` every 30 min and raises a local notification when
-  the problem set changes (see §Android). The service stays passive; the phone asks.
+  the problem set changes (see `android/README.md`). The service stays passive; the phone asks.
   This exists because a dead producer that nobody looks at is a dead producer nobody
   knows about: the pixel5 sensor receiver went silent for 7 hours and was caught only
   by a human noticing a missing line on a chart.
@@ -56,17 +55,18 @@ same stack as the rest of the fleet so `~/Code/check` keeps it consistent.
 
 ## 3. Existing landscape (what feeds this)
 
-| Tool | Lives | Checks | Output today |
+| Tool | Lives | Checks | Output (pre-fleetwatch) |
 |---|---|---|---|
 | `fleet_health.py` | `xinutec-infra/mac-mini/` | hosts, k3s pods, backups+drills, restic, TLS/DNS, blocklists, healthchecks.io, VPN one-way, git drift | ANSI text, exit code |
 | `doc_checks.py` | `xinutec-infra/mac-mini/` | documented claims vs live fleet, each with `file:line` ref | ANSI text, exit code |
 | `~/Code/check` (`dev_lint.fleet`) | dev-lint engine + `~/Code/check` config | fleet consistency, per-repo dev-lint, per-repo `verify.sh` (`--full`) | ANSI text, exit code |
 | `dev-lint` | `~/Code/dev-lint` | per-file `path:line:col: RULE msg` | text, exit code |
 
-None emit JSON today, but all hold structured data in memory
+At design time none emitted JSON, but all held structured data in memory
 (`CheckResult(section, label, verdict, observed, expected)` in `_checks.py`;
 `Finding`/`Run` tuples in `fleet.py`; `Violation` dataclass in dev-lint). The
-emitters are serializers, not parsers — no text-scraping anywhere in this design.
+`--json` emitters (since built) are serializers, not parsers — no text-scraping
+anywhere.
 
 ## 4. Data model
 
@@ -103,9 +103,9 @@ Notes on the shape — each of these is a deliberate decision:
   producer cannot spoof another machine's status.
 - **Check identity for trends** is `(source, collector, section, label)`. This is a
   *contract on producers*: labels must be stable across runs, with run-varying data
-  in `observed`/`value`, never in the label. `_checks.py` already separates label
-  from observed. `fleet.py` does **not** (consistency findings are free-form
-  messages) — see §7.3 for the required refactor.
+  in `observed`/`value`, never in the label. `_checks.py` already separated label
+  from observed; `fleet.py` did not (free-form consistency messages) — §7.3 was
+  that refactor.
 - **`subject`** exists because tools report *about* machines they don't run on
   (`fleet_health.py` runs on the Mac, reports about odin). It enables a future
   "everything about isis" view regardless of which producer said it.
@@ -126,7 +126,8 @@ Notes on the shape — each of these is a deliberate decision:
 ```
 report   id (ULID pk), source, collector, schema, collected_at, received_at,
          duration_ms, interval_s, ok (derived), raw (LONGTEXT, the payload)
-check    report_id (fk), seq, section, label, subject, verdict,
+check_result
+         report_id (fk), seq, section, label, subject, verdict,
          observed, expected, value, unit, ref, detail,
          -- denormalized for the trend query, avoids the join:
          source, collector, collected_at
@@ -134,8 +135,12 @@ token    (none — tokens live in the k8s secret as env, see §6)
 ```
 
 Indexes: `report(source, collector, collected_at)`;
-`check(source, collector, section, label, collected_at)` for history;
-`check(verdict, collected_at)` for the problems view.
+`check_result(source, collector, section, label, collected_at)` for history;
+`check_result(verdict, collected_at)` for the problems view.
+
+Later migrations added `sessions` (0002, see §6), `mute` (0003, see §5), and made
+`verdict` an ENUM (0004) so a corrupt write fails at the producer — where the
+spool retry makes it visible — instead of poisoning reads.
 
 **Volume estimate**: ~200 checks/report × hourly × 3 collectors ≈ 15–20k check
 rows/day, ~7M/year — comfortable for MariaDB with the above indexes. Raw payloads
@@ -228,8 +233,11 @@ producer = edit secret + rollout. Constant-time comparison on the server. On the
 Mac the token lives in a `0600` file under `~/.config/fleetwatch/`, read by the pusher
 — never in a repo, never in launchd plist XML.
 
-**Reads are unauthenticated** (VPN + whitelist is the gate — user decision:
-view-only fleet status, login friction not worth it). Writes need the token.
+**Reads were unauthenticated in v1** (VPN + whitelist as the gate).
+**Superseded**: with the whitelist unenforceable (above), reads now require a
+Nextcloud login — fleetwatch keeps its own DB-backed sessions (`src/session.rs`),
+touching NC only at login. The one exception is the read token on
+`/api/problems` (§5). Writes need the ingest token.
 
 CI: this repo's own `.github/workflows/build.yml` — a `verify` (clippy + cargo
 test against a throwaway MariaDB) and `fe-verify` (angular-eslint + unit tests +
@@ -238,7 +246,9 @@ Deploy stays manual `kubectl apply` on isis (isis is not Flux-managed).
 
 ## 7. First producer: the Mac mini
 
-Three parts, all in `xinutec-infra/mac-mini/` next to the tools they wrap.
+Built. Three parts, all in `xinutec-infra/mac-mini/` next to the tools they
+wrap; the live registry of collectors + cadences is `COLLECTORS` in
+`fleetwatch_push.py`.
 
 ### 7.1 `--json` emitters
 
@@ -275,27 +285,20 @@ fleetwatch_push.py flush                             # retry everything in the s
 
 ### 7.3 `fleet.py` stable-key refactor (prerequisite, small)
 
-Consistency findings today are `(level, "free-form message with specifics")` —
-unusable as trend keys. Before the emitter lands, each consistency check gets a
-stable id (it already has a function name) and findings carry
-`(check_id, repo, message)` so the JSON maps to
-`section="consistency", label=check_id, subject=repo, observed=message`. Human
-output unchanged. This is the only producer-side refactor the design needs.
+Done. Consistency findings were `(level, "free-form message with specifics")` —
+unusable as trend keys — so each consistency check's function name became its
+stable id: `section="consistency", label=check_id, subject=repo,
+observed=message`. Human output unchanged. This was the only producer-side
+refactor the design needed.
 
 ### 7.4 Schedule (launchd)
 
-| Collector | Cadence | Note |
-|---|---|---|
-| `fleet_health.py` | hourly | network probes, ~1–2 min |
-| `doc_checks.py` | every 6 h | claims drift slowly |
-| `check` (consistency + lint) | every 6 h | minutes of dev-lint across repos |
-| `check --full` | daily, overnight | builds + full test suites |
-
-One launchd plist per cadence invoking `fleetwatch_push.py run …`. **Known risk to
-verify at implementation time**: the tools SSH to the fleet hosts; they must find
-keys non-interactively in a launchd context (no Keychain-unlocked ssh-agent). If
-that bites, the fallback is running the pushes from a login-session LaunchAgent
-rather than a LaunchDaemon.
+One agent per collector invoking `fleetwatch_push.py run <collector>`, generated
+by home-manager (`hm-agents.nix`); the cadence lives in the `COLLECTORS`
+registry, not here, so it can't drift from this doc. The SSH-keys risk resolved
+as predicted: the agents are login-session LaunchAgents with a folded nix
+toolbox on PATH (`fleetwatch-tools` — the scripts' nix-shell shebangs hang under
+launchd).
 
 ## 8. UI
 
@@ -319,14 +322,16 @@ Views, in the order you'd reach for them:
 4. **Check history** — verdict timeline strip ("red since Tuesday 14:00") and, for
    checks with `value`, a line chart (disk %, cert days, snapshot count,
    violation counts trending to zero).
-5. **Runs** — report list per collector with duration + ok, for "did it even run".
+5. **Runs** — report list per collector with duration + ok, for "did it even
+   run". Built as the "Recent runs" list on the history view, not a separate page.
 
-Charts: sparklines in tiles are hand-rolled SVG (trivial, no dep); the history
-view uses a small self-contained chart lib — decide at implementation after
-checking what health-sync's frontend already uses (reuse beats introducing a
-second lib; if none fits, Chart.js).
+Charts (resolved): the history chart is hand-rolled SVG
+(`features/history/chart.ts`, pure functions + a slim component) — no chart lib.
+Tiles carry verdict counts, not sparklines.
 
 ## 9. Milestones
+
+All built; 5 stays open-ended by design.
 
 1. **Platform skeleton** — `code/kubes/fleetwatch/` cloned from life: schema,
    migrations, ingest + all five GET routes, token auth, retention task, tests
@@ -345,9 +350,9 @@ second lib; if none fits, Chart.js).
 - ~~**whitelist-source-range vs servicelb**~~ — RESOLVED (2026-07-03): the client
   IP does NOT survive servicelb (SNAT'd); annotation removed, running at
   messages-parity. Token still gates writes.
-- **launchd + SSH keys** for non-interactive fleet probes (§7.4).
-- **`fleet.py` key refactor** touches dev-lint's engine — small but it's shared
-  infrastructure; do it as its own reviewed commit with tests.
+- ~~**launchd + SSH keys**~~ — RESOLVED: login-session LaunchAgents + folded
+  toolbox (§7.4).
+- ~~**`fleet.py` key refactor**~~ — DONE (§7.3).
 - **Label stability is a convention, not enforced.** A producer that embeds a
   value in a label silently forks its own history. Mitigation: a dev-lint rule is
   overkill for now; instead the history view makes breakage visible (series
