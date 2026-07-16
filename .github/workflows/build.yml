@@ -39,6 +39,12 @@ jobs:
       - run: rustup component add clippy
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test -- --test-threads=1
+      # The committed TS types + golden wire fixture must match the Rust types.
+      # verify.sh gates this locally via the pre-commit hook, but a clone
+      # without hooks could push drift — without this step CI would merge it.
+      - run: |
+          scripts/gen-types.sh
+          git diff --exit-code -- frontend/src/app/generated tests/golden
 
   fe-verify:
     permissions:
