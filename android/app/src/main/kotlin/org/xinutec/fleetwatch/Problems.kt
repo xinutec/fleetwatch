@@ -80,7 +80,11 @@ data class Problems(
                             section = o.optString("section"),
                             label = o.optString("label"),
                             verdict = o.optString("verdict"),
-                            observed = o.optString("observed").ifEmpty { null },
+                            // NOT optString: the wire writes absent optionals as an
+                            // explicit `"observed": null`, and Android's org.json
+                            // (unlike the upstream one on the test classpath) renders
+                            // that as the literal string "null".
+                            observed = if (o.isNull("observed")) null else o.optString("observed"),
                         )
                     },
                 stale =

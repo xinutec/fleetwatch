@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "source": "mac-mini",
+      "collector": "home-receivers",
+      "report_id": "01JZFIXTURE0000000000000A",
+      "section": "receivers",
+      "label": "pixel5",
+      "subject": "pixel5",
+      "verdict": "fail",
+      "observed": "last push 414 min ago",
+      "expected": "< 30 min",
+      "ref": "receivers.md:12",
+      "collected_at": "2026-07-03T14:00:00Z"
+    },
+    {
+      "source": "mac-mini",
+      "collector": "fleet-health",
+      "report_id": "01JZFIXTURE0000000000000B",
+      "section": "NIXOS RELEASE PARITY",
+      "label": "release parity",
+      "subject": null,
+      "verdict": "warn",
+      "observed": null,
+      "expected": null,
+      "ref": null,
+      "collected_at": "2026-07-03T14:05:00Z"
+    }
+  ],
+  "muted": [
+    {
+      "source": "mac-mini",
+      "collector": "doc-checks",
+      "report_id": "01JZFIXTURE0000000000000C",
+      "section": "docs",
+      "label": "backup drill age",
+      "subject": null,
+      "verdict": "fail",
+      "observed": "drill 40 days old",
+      "ref": null,
+      "collected_at": "2026-07-03T14:10:00Z",
+      "mute_id": "01JZFIXTURE0000000000000D",
+      "reason": "drill scheduled for the weekend",
+      "expires_at": "2026-07-03T20:00:00Z"
+    }
+  ],
+  "stale": [
+    {
+      "source": "isis",
+      "collector": "backup-verify",
+      "report_id": "01JZFIXTURE0000000000000E",
+      "collected_at": "2026-07-03T02:00:00Z",
+      "age_s": 43200,
+      "interval_s": 21600,
+      "freshness": "silent",
+      "worst": "pass",
+      "pass": 12,
+      "warn": 0,
+      "fail": 0,
+      "skip": 1,
+      "muted": 0,
+      "total": 13
+    }
+  ]
+}
