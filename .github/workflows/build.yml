@@ -74,12 +74,10 @@ jobs:
         with:
           context: .
           push: true
-          # :latest is what the deploy pulls; the sha tag is the rollback
-          # target and makes "what is actually running?" answerable — the
-          # running pod's image can be pinned back to an exact commit.
-          tags: |
-            xinutec/fleetwatch:latest
-            xinutec/fleetwatch:sha-${{ github.sha }}
+          # ONLY :latest — never version/sha tags. A rollback is a new image
+          # built from rolled-forward fixes on main, not an old tag re-pinned;
+          # "what is running?" is answered by the build sha the app surfaces.
+          tags: xinutec/fleetwatch:latest
           # Commit stamp for the build-version the app surfaces (Dockerfile ARG).
           build-args: |
             GIT_SHA=${{ github.sha }}
