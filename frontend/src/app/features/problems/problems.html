@@ -1,6 +1,10 @@
 <section>
   <header class="head">
     <h2>Problems</h2>
+    <span class="spacer"></span>
+    @if (checkedAgo(); as ago) {
+      <span class="asof tnum">checked {{ ago }}</span>
+    }
     <button
       mat-icon-button
       (click)="data.reload()"
@@ -20,6 +24,9 @@
     <div class="all-clear">
       <mat-icon>check_circle</mat-icon>
       <p>All clear — every collector is fresh and green.</p>
+      @if (allClearDetail(); as detail) {
+        <p class="detail tnum">{{ detail }}</p>
+      }
     </div>
   }
 
@@ -90,26 +97,25 @@
 
               @if (openKey() === keyOf(c)) {
                 <div class="mute-form">
-                  <input
-                    class="reason"
-                    type="text"
-                    placeholder="Why is this expected? (required)"
-                    [ngModel]="reason()"
-                    (ngModelChange)="reason.set($event)"
-                  />
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="reason">
+                    <mat-label>Why is this expected?</mat-label>
+                    <input
+                      matInput
+                      type="text"
+                      required
+                      [ngModel]="reason()"
+                      (ngModelChange)="reason.set($event)"
+                    />
+                  </mat-form-field>
                   <div class="mute-row">
-                    <label>
-                      for
-                      <select
-                        class="ttl"
-                        [ngModel]="ttlHours()"
-                        (ngModelChange)="ttlHours.set(+$event)"
-                      >
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ttl">
+                      <mat-label>for</mat-label>
+                      <mat-select [ngModel]="ttlHours()" (ngModelChange)="ttlHours.set($event)">
                         @for (d of durations; track d.hours) {
-                          <option [value]="d.hours">{{ d.label }}</option>
+                          <mat-option [value]="d.hours">{{ d.label }}</mat-option>
                         }
-                      </select>
-                    </label>
+                      </mat-select>
+                    </mat-form-field>
                     <span class="spacer"></span>
                     <button
                       mat-flat-button

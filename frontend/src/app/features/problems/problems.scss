@@ -1,7 +1,16 @@
 .head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
+
+  .spacer {
+    flex: 1;
+  }
+  // The staleness marker for a page that sits open: quiet, but present.
+  .asof {
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-label-small);
+  }
 }
 
 .hint {
@@ -27,6 +36,9 @@
     font-size: 3rem;
     width: 3rem;
     height: 3rem;
+  }
+  .detail {
+    font: var(--mat-sys-label-small);
   }
 }
 
@@ -77,12 +89,6 @@
 
   .reason {
     width: 100%;
-    padding: 0.5rem 0.6rem;
-    border: 1px solid var(--mat-sys-outline);
-    border-radius: 0.4rem;
-    background: var(--mat-sys-surface);
-    color: var(--mat-sys-on-surface);
-    font: var(--mat-sys-body-medium);
   }
 
   .mute-row {
@@ -90,20 +96,8 @@
     align-items: center;
     gap: 0.5rem;
 
-    label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font: var(--mat-sys-label-medium);
-      color: var(--mat-sys-on-surface-variant);
-    }
     .ttl {
-      padding: 0.35rem 0.4rem;
-      border: 1px solid var(--mat-sys-outline);
-      border-radius: 0.4rem;
-      background: var(--mat-sys-surface);
-      color: var(--mat-sys-on-surface);
-      font: var(--mat-sys-body-medium);
+      width: 9rem;
     }
     .spacer {
       flex: 1;
