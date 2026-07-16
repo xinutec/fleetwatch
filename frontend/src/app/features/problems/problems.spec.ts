@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
@@ -102,7 +103,8 @@ describe('Problems (mute flow)', () => {
     http.expectNone('/api/mutes');
   });
 
-  it('a rejected mute keeps the form open for another try', async () => {
+  it('a rejected mute keeps the form open and says so', async () => {
+    const snack = vi.spyOn(TestBed.inject(MatSnackBar), 'open');
     cmp.toggleMute(CHECK);
     cmp.reason.set('why');
     cmp.submitMute(CHECK);
@@ -110,6 +112,16 @@ describe('Problems (mute flow)', () => {
     await drain();
     expect(cmp.openKey()).toBe('mac-mini fleet-health disk');
     expect(cmp.saving()).toBe(false); // the button is usable again
+    // A silent failure would read as "muted" while the alert keeps firing.
+    expect(snack).toHaveBeenCalledWith('Could not save the mute', 'Dismiss', expect.anything());
+  });
+
+  it('a failed unmute says so instead of failing silently', async () => {
+    const snack = vi.spyOn(TestBed.inject(MatSnackBar), 'open');
+    cmp.unmute('01JM');
+    http.expectOne('/api/mutes/01JM').flush('nope', { status: 500, statusText: 'Server Error' });
+    await drain();
+    expect(snack).toHaveBeenCalledWith('Could not remove the mute', 'Dismiss', expect.anything());
   });
 
   it('unmuting deletes the mute and reloads', async () => {

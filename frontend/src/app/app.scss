@@ -67,24 +67,6 @@
     }
   }
 
-  .tab-icon {
-    position: relative;
-    display: inline-flex;
-  }
-  .badge {
-    position: absolute;
-    top: -0.3rem;
-    left: 1rem;
-    min-width: 1rem;
-    height: 1rem;
-    padding: 0 0.2rem;
-    border-radius: 999px;
-    background: var(--v-fail);
-    color: var(--mat-sys-on-error);
-    font: var(--mat-sys-label-small);
-    line-height: 1rem;
-    text-align: center;
-  }
 }
 
 // From tablet up, the nav becomes a left rail.
@@ -109,9 +91,6 @@
 
     .tab {
       flex: none;
-    }
-    .badge {
-      left: 1.2rem;
     }
   }
   .content {

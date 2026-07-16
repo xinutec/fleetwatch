@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { MatBadgeModule } from '@angular/material/badge';
 import { MatIconModule } from '@angular/material/icon';
 
 import { BUILD_INFO } from './build-info';
@@ -11,7 +12,7 @@ const EMPTY_PROBLEMS: Problems = { checks: [], muted: [], stale: [] };
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatBadgeModule, MatIconModule],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

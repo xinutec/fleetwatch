@@ -17,6 +17,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { OverviewEntry, ProblemCheck, Problems as ProblemsData } from '../../models';
 import { formatAge } from '../../status';
@@ -51,6 +52,7 @@ function keyOf(c: ProblemCheck): string {
 })
 export class Problems {
   private readonly mutes = inject(MutesApi);
+  private readonly snack = inject(MatSnackBar);
 
   readonly data = httpResource<ProblemsData>(() => '/api/problems', { defaultValue: EMPTY });
   readonly formatAge = formatAge;
@@ -156,11 +158,19 @@ export class Problems {
           this.openKey.set(null);
           this.data.reload();
         },
-        error: () => this.saving.set(false),
+        error: () => {
+          // The form stays open with the typed reason — failing silently would
+          // read as "muted" while the alert keeps firing.
+          this.saving.set(false);
+          this.snack.open('Could not save the mute', 'Dismiss', { duration: 5000 });
+        },
       });
   }
 
   unmute(id: string): void {
-    this.mutes.remove(id).subscribe({ next: () => this.data.reload() });
+    this.mutes.remove(id).subscribe({
+      next: () => this.data.reload(),
+      error: () => this.snack.open('Could not remove the mute', 'Dismiss', { duration: 5000 }),
+    });
   }
 }
