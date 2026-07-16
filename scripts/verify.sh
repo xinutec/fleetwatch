@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# fleetwatch verify — rust backend (fmt + clippy) + angular frontend (build + unit
-# tests + phone-width layout harness) + shared rules + type-drift gate. Backend
-# integration tests need MariaDB (FLEETWATCH_TEST_DATABASE_URL); run those
-# separately via scripts/dev-db.sh.
+# fleetwatch verify — rust backend (fmt + clippy + tests, incl. the DB integration
+# tests against an ephemeral MariaDB) + angular frontend (build + unit tests +
+# phone-width layout harness) + android poller (compile + unit tests) + shared
+# rules + type-drift gate.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 nix develop -c bash -c '
@@ -18,11 +18,16 @@ nix develop -c bash -c '
   export NG_BUILD_MAX_WORKERS=1
   cargo fmt --all --check
   cargo clippy --all-targets -- -D warnings
-  # Regenerate the TS types and fail if the committed output drifted.
+  # The whole suite, DB integration tests included — with-test-db.sh brings up a
+  # throwaway MariaDB and exports FLEETWATCH_TEST_DATABASE_URL so the tests/*_db.rs
+  # tests run instead of silently skipping.
+  scripts/with-test-db.sh cargo test
+  # Regenerate the TS types + golden wire fixture and fail if the committed
+  # output drifted.
   scripts/gen-types.sh
-  if ! git diff --quiet -- frontend/src/app/generated; then
-    echo "generated types are stale — run scripts/gen-types.sh and commit" >&2
-    git --no-pager diff -- frontend/src/app/generated >&2
+  if ! git diff --quiet -- frontend/src/app/generated tests/golden; then
+    echo "generated types/fixtures are stale — run scripts/gen-types.sh and commit" >&2
+    git --no-pager diff -- frontend/src/app/generated tests/golden >&2
     exit 1
   fi
   # ui-check (L2 phone-width layout harness) runs after the build — it serves
@@ -36,6 +41,12 @@ nix develop -c bash -c '
   fi
   ( cd frontend && npm run lint && npx ng build && npm test && npm run ui-check )
 '
+# The Android poller is a real client with real logic (warning filtering,
+# fingerprinting, notification decisions) — it compiles and its unit tests run
+# here, not only when someone remembers. Toolchain comes from recall's android
+# dev shell, same as android/deploy.sh; a missing shell fails the gate rather
+# than skipping (a gate that skips is a gate that lies).
+( cd android && nix develop ~/Code/recall#android --command ./gradlew --console=plain -q :app:assembleDebug :app:testDebugUnitTest )
 dev_lint_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dev-lint"
 [ -d "$dev_lint_dir" ] || dev_lint_dir="$HOME/Code/dev-lint"
 [ -d "$dev_lint_dir" ] || dev_lint_dir="$HOME/code/dev-lint"
