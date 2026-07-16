@@ -10,7 +10,9 @@ use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::report::repo;
-use crate::report::types::{History, OverviewEntry, Problems, ReportDetail, ReportSummary};
+use crate::report::types::{
+    CheckKey, History, OverviewEntry, Problems, ReportDetail, ReportSummary,
+};
 use crate::session::{AuthUser, Reader};
 use crate::state::AppState;
 
@@ -94,16 +96,13 @@ pub async fn history(
     if from > to {
         return Err(AppError::BadRequest("from must be <= to".into()));
     }
-    Ok(Json(
-        repo::history(
-            &app.pool,
-            &q.source,
-            &q.collector,
-            &q.section,
-            &q.label,
-            from,
-            to,
-        )
-        .await?,
-    ))
+    // Named struct fields, not four positional strings — a transposed
+    // collector/section can't compile.
+    let key = CheckKey {
+        source: q.source,
+        collector: q.collector,
+        section: q.section,
+        label: q.label,
+    };
+    Ok(Json(repo::history(&app.pool, &key, from, to).await?))
 }

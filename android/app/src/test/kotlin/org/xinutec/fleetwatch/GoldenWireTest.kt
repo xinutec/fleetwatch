@@ -1,6 +1,7 @@
 package org.xinutec.fleetwatch
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -71,9 +72,11 @@ class GoldenWireTest {
         assertEquals(2, p.notifiable().count)
         assertEquals("isis/backup-verify silent, pixel5 fail", p.notifiable().summary())
 
-        // The fingerprint keys on fields that must therefore all be parsed for real.
+        // The fingerprint keys on fields that must therefore all be parsed for
+        // real: re-parsing the same wire data reproduces it exactly, and the
+        // dropped warn distinguishes it from the full set's.
         val fp = p.notifiable().fingerprint()
-        assertTrue(fp, fp.contains("mac-mini/home-receivers/receivers/pixel5=fail"))
-        assertTrue(fp, fp.contains("isis/backup-verify=stale"))
+        assertEquals(fp, Problems.parse(golden()).notifiable().fingerprint())
+        assertNotEquals(fp, p.fingerprint())
     }
 }

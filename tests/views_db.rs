@@ -3,7 +3,7 @@
 
 use chrono::{Duration, Utc};
 use fleetwatch::report::repo;
-use fleetwatch::report::types::{CheckUpload, ReportUpload, Verdict};
+use fleetwatch::report::types::{CheckKey, CheckUpload, ReportUpload, Verdict};
 use ulid::Ulid;
 
 mod common;
@@ -62,10 +62,12 @@ async fn history_and_runs_time_series() {
     // History for the disk check: three ascending points, unit carried through.
     let hist = repo::history(
         &pool,
-        source,
-        "fleet-health",
-        "isis",
-        "disk usage /",
+        &CheckKey {
+            source: source.into(),
+            collector: "fleet-health".into(),
+            section: "isis".into(),
+            label: "disk usage /".into(),
+        },
         now - Duration::days(1),
         now + Duration::minutes(1),
     )

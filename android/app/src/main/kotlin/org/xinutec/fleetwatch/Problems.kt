@@ -42,11 +42,19 @@ data class Problems(
      * notification away without reading it — at which point the alert is worse than
      * nothing, because it looks like it's working. Sorted so map/DB ordering can't make
      * an unchanged set look new.
+     *
+     * Each entry is a JSON array, not concatenation: JSON escapes the quotes, so no
+     * field content can forge an entry boundary — with `/`-joined strings, a crafted
+     * label could make two DIFFERENT problem sets fingerprint-equal, and a matching
+     * fingerprint here means a missed notification.
      */
     fun fingerprint(): String =
         (
-            checks.map { "${it.source}/${it.collector}/${it.section}/${it.label}=${it.verdict}" } +
-                stale.map { "${it.source}/${it.collector}=stale" }
+            checks.map {
+                JSONArray(listOf(it.source, it.collector, it.section, it.label, it.verdict))
+                    .toString()
+            } +
+                stale.map { JSONArray(listOf(it.source, it.collector, "stale")).toString() }
         ).sorted()
             .joinToString("|")
 

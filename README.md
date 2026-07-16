@@ -48,8 +48,10 @@ Body (`schema: 1`):
 
 `verdict` ∈ `pass|warn|fail|skip`. A check's trend identity is
 `(source, collector, section, label)` — keep `label` stable across runs, put
-run-varying data in `observed`/`value`. `201` = stored, `200` = idempotent
-duplicate, `401` = bad token, `422` = bad schema/shape.
+run-varying data in `observed`/`value`. `label` must be non-empty and both
+`section`/`label` at most 255 bytes (longer would be truncated by the columns,
+silently splitting one trend into two). `201` = stored, `200` = idempotent
+duplicate, `401` = bad token, `422` = bad schema/shape/identity.
 
 ## Develop
 

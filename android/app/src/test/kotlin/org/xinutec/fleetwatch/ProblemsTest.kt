@@ -118,6 +118,25 @@ class ProblemsTest {
     }
 
     @Test
+    fun `a crafted label cannot forge a fingerprint match`() {
+        // Under naive `/`-concatenation these two DIFFERENT checks would both
+        // read s/c/sec/lab/x=fail — and equal fingerprints mean a real change
+        // is swallowed as "already told you". The structural encoding keeps
+        // field boundaries no matter what the fields contain.
+        val a =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"sec",
+               "label":"lab/x","verdict":"fail"}],"stale":[]}""",
+            )
+        val b =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"sec/lab",
+               "label":"x","verdict":"fail"}],"stale":[]}""",
+            )
+        assertNotEquals(a.fingerprint(), b.fingerprint())
+    }
+
+    @Test
     fun `problem order does not change the fingerprint`() {
         // Row order out of the DB isn't guaranteed; an unchanged set must not look new
         // just because it came back shuffled.

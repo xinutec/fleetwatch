@@ -177,3 +177,40 @@ async fn stale_collector_surfaces_in_problems() {
 
     common::clean(&pool, source).await;
 }
+
+#[tokio::test]
+async fn rejects_checks_that_would_corrupt_a_trend_identity() {
+    let source = "test-identity";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping identity DB test");
+        return;
+    };
+
+    let upload = |checks: Vec<CheckUpload>| ReportUpload {
+        schema: 1,
+        id: Ulid::new().to_string(),
+        collector: "fleet-health".into(),
+        collected_at: Utc::now(),
+        duration_ms: None,
+        interval_s: None,
+        checks,
+    };
+
+    // An empty label is an unaddressable check.
+    let empty = upload(vec![check("isis", "   ", Verdict::Pass, None)]);
+    assert!(repo::ingest(&pool, source, &empty, "{}").await.is_err());
+
+    // Anything past VARCHAR(255) would be silently truncated by the column —
+    // splitting one trend into two identities. Rejected instead.
+    let long = "x".repeat(256);
+    let too_long = upload(vec![check("isis", &long, Verdict::Pass, None)]);
+    assert!(repo::ingest(&pool, source, &too_long, "{}").await.is_err());
+
+    // Exactly at the limit is stored untouched.
+    let at_limit = "x".repeat(255);
+    let ok = upload(vec![check("isis", &at_limit, Verdict::Pass, None)]);
+    let ack = repo::ingest(&pool, source, &ok, "{}")
+        .await
+        .expect("ingest");
+    assert_eq!(ack.checks, 1);
+}

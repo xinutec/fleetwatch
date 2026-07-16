@@ -68,6 +68,17 @@ pub enum Freshness {
     Silent,
 }
 
+/// The identity a check trends under (docs/design.md §4.1). One struct rather
+/// than four positional strings, so a call site can't transpose collector and
+/// section and still compile — a swap would just return an empty series.
+#[derive(Debug, Clone)]
+pub struct CheckKey {
+    pub source: String,
+    pub collector: String,
+    pub section: String,
+    pub label: String,
+}
+
 // --- upload (producer → fleetwatch). Deserialize only; producers aren't TS. ---
 
 /// One report POSTed by a producer. `id` is a producer-minted ULID used as the

@@ -12,10 +12,21 @@ use ulid::Ulid;
 
 use super::staleness::freshness;
 use super::types::{
-    CheckOut, CheckUpload, Freshness, History, HistoryPoint, IngestAck, Mute, MutedCheck, NewMute,
-    OverviewEntry, ProblemCheck, Problems, ReportDetail, ReportSummary, ReportUpload, SCHEMA,
-    Verdict,
+    CheckKey, CheckOut, CheckUpload, Freshness, History, HistoryPoint, IngestAck, Mute, MutedCheck,
+    NewMute, OverviewEntry, ProblemCheck, Problems, ReportDetail, ReportSummary, ReportUpload,
+    SCHEMA, Verdict,
 };
+
+/// The window that ranks each (source, collector)'s reports newest-first —
+/// `rn = 1` is the latest report. One spelling, shared by `overview()` and
+/// `problems()` (a macro, not a const: `concat!` resolves it at compile time,
+/// which keeps the SQL a checkable literal).
+macro_rules! latest_rn {
+    () => {
+        "ROW_NUMBER() OVER \
+           (PARTITION BY source, collector ORDER BY collected_at DESC, id DESC) rn"
+    };
+}
 use crate::error::AppError;
 
 /// A mute's time-to-live is clamped to this range: at least an hour (a shorter
@@ -52,6 +63,27 @@ pub async fn ingest(
         return Err(AppError::Unprocessable(
             "collector must not be empty".into(),
         ));
+    }
+    // A check's trend identity is (source, collector, section, label); the DB
+    // columns are VARCHAR(255). An empty label makes an unaddressable check,
+    // and an oversize one would be TRUNCATED — silently splitting a trend into
+    // two identities. Reject both here, where the producer's spool retry makes
+    // the failure loud, instead of storing a lie.
+    for (i, c) in upload.checks.iter().enumerate() {
+        if c.label.trim().is_empty() {
+            return Err(AppError::Unprocessable(format!(
+                "check #{i}: label must not be empty"
+            )));
+        }
+        for (field, value) in [("section", &c.section), ("label", &c.label)] {
+            if value.len() > 255 {
+                return Err(AppError::Unprocessable(format!(
+                    "check #{i}: {field} exceeds 255 bytes ({} bytes — \
+                     run-varying data belongs in observed/value, not the identity)",
+                    value.len()
+                )));
+            }
+        }
     }
 
     let (mut n_pass, mut n_warn, mut n_fail, mut n_skip) = (0u32, 0u32, 0u32, 0u32);
@@ -207,15 +239,14 @@ pub async fn overview(pool: &MySqlPool) -> Result<Vec<OverviewEntry>> {
     let rows: Vec<LatestRow> = sqlx::query_as(
         // SUM over a boolean is DECIMAL in MariaDB; CAST back to UNSIGNED so the
         // column decodes into u32.
-        "SELECT x.id, x.source, x.collector, x.collected_at, x.interval_s, \
+        concat!(
+            "SELECT x.id, x.source, x.collector, x.collected_at, x.interval_s, \
                 x.n_pass, x.n_warn, x.n_fail, x.n_skip, \
                 CAST(COALESCE(m.muted_fail, 0) AS UNSIGNED) AS muted_fail, \
                 CAST(COALESCE(m.muted_warn, 0) AS UNSIGNED) AS muted_warn \
-         FROM ( \
-           SELECT r.*, ROW_NUMBER() OVER \
-             (PARTITION BY source, collector ORDER BY collected_at DESC, id DESC) rn \
-           FROM report r \
-         ) x \
+         FROM (SELECT r.*, ",
+            latest_rn!(),
+            " FROM report r) x \
          LEFT JOIN ( \
            SELECT c.report_id, \
                   SUM(c.verdict = 'fail') AS muted_fail, \
@@ -227,6 +258,7 @@ pub async fn overview(pool: &MySqlPool) -> Result<Vec<OverviewEntry>> {
            GROUP BY c.report_id \
          ) m ON m.report_id = x.id \
          WHERE x.rn = 1 ORDER BY x.source, x.collector",
+        ),
     )
     // Bind UTC now rather than SQL NOW(3): the DB server clock is local, and the
     // stored timestamps are UTC — comparing them in SQL would offset the mute
@@ -289,20 +321,16 @@ struct ProblemRow {
 /// mute is matched in Rust against the active-mute set rather than a SQL join, so
 /// two overlapping mutes on one identity can't duplicate a row.
 pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
-    let rows: Vec<ProblemRow> = sqlx::query_as(
-        "WITH latest AS ( \
-           SELECT id FROM ( \
-             SELECT id, ROW_NUMBER() OVER \
-               (PARTITION BY source, collector ORDER BY collected_at DESC, id DESC) rn \
-             FROM report \
-           ) x WHERE rn = 1 \
-         ) \
+    let rows: Vec<ProblemRow> = sqlx::query_as(concat!(
+        "WITH latest AS (SELECT id FROM (SELECT id, ",
+        latest_rn!(),
+        " FROM report) x WHERE rn = 1) \
          SELECT c.source, c.collector, c.report_id, c.section, c.label, c.subject, \
                 c.verdict, c.observed, c.expected, c.doc_ref, c.collected_at \
          FROM check_result c JOIN latest l ON c.report_id = l.id \
          WHERE c.verdict IN ('fail', 'warn') \
          ORDER BY FIELD(c.verdict, 'fail', 'warn'), c.source, c.collector, c.section, c.seq",
-    )
+    ))
     .fetch_all(pool)
     .await?;
 
@@ -624,10 +652,7 @@ struct HistoryRow {
 /// one (the current meaning of the numeric).
 pub async fn history(
     pool: &MySqlPool,
-    source: &str,
-    collector: &str,
-    section: &str,
-    label: &str,
+    key: &CheckKey,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Result<History> {
@@ -637,10 +662,10 @@ pub async fn history(
            AND collected_at BETWEEN ? AND ? \
          ORDER BY collected_at",
     )
-    .bind(source)
-    .bind(collector)
-    .bind(section)
-    .bind(label)
+    .bind(&key.source)
+    .bind(&key.collector)
+    .bind(&key.section)
+    .bind(&key.label)
     .bind(from.naive_utc())
     .bind(to.naive_utc())
     .fetch_all(pool)
@@ -659,10 +684,10 @@ pub async fn history(
         .collect::<Result<Vec<_>>>()?;
 
     Ok(History {
-        source: source.to_string(),
-        collector: collector.to_string(),
-        section: section.to_string(),
-        label: label.to_string(),
+        source: key.source.clone(),
+        collector: key.collector.clone(),
+        section: key.section.clone(),
+        label: key.label.clone(),
         unit,
         points,
     })
