@@ -30,9 +30,10 @@ macro_rules! latest_rn {
 use crate::error::AppError;
 
 /// A mute's time-to-live is clamped to this range: at least an hour (a shorter
-/// mute isn't worth recording) and at most 90 days (nothing stays silenced for a
-/// season without a human re-deciding).
-const MUTE_TTL_HOURS: std::ops::RangeInclusive<u32> = 1..=24 * 90;
+/// mute isn't worth recording) and at most 365 days — long enough to silence
+/// known-dead hardware awaiting a rebuild (picade3/picade4) for a year, still not
+/// permanent, so a mute always has an expiry a human eventually re-decides.
+const MUTE_TTL_HOURS: std::ops::RangeInclusive<u32> = 1..=24 * 365;
 
 /// Validate + store one uploaded report under `source` (from the token). Returns
 /// an ack marking whether this was a fresh store or an idempotent replay.

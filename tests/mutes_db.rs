@@ -280,4 +280,17 @@ async fn create_mute_validates() {
             .iter()
             .any(|m| m.id == clamped.id)
     );
+
+    // A huge ttl clamps down to the 365-day ceiling — long enough for dead
+    // hardware awaiting a rebuild, still never permanent.
+    let ceiling = repo::create_mute(
+        &pool,
+        &new_mute(source, "vpn-nodes", "bes", u32::MAX),
+        "pip",
+    )
+    .await
+    .unwrap();
+    let a_year = Utc::now() + Duration::days(365);
+    assert!(ceiling.expires_at <= a_year + Duration::hours(1));
+    assert!(ceiling.expires_at > a_year - Duration::days(1));
 }
