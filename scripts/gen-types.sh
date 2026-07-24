@@ -15,10 +15,10 @@
 # it has actually worked. The old order was `rm -rf "$OUT"` then generate with
 # both streams sent to /dev/null: any compile error in the test tree (a struct
 # literal missing a new field is enough) deleted every committed type file and
-# said nothing — and unlike life and coach, fleetwatch has no drift gate to
-# notice, so the tree would sit there unbuildable for a reason nothing reported.
-# A generator that fails must leave the previous output exactly where it was.
-# (Same fix as life/coach; keep the three in step.)
+# said nothing, leaving the tree unbuildable for a reason nothing reported. The
+# drift gate below in verify.sh would then have compared against a directory that
+# no longer existed. A generator that fails must leave the previous output
+# exactly where it was. (Same fix as life/coach; keep the three in step.)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
