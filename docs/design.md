@@ -239,6 +239,16 @@ Nextcloud login — fleetwatch keeps its own DB-backed sessions (`src/session.rs
 touching NC only at login. The one exception is the read token on
 `/api/problems` (§5). Writes need the ingest token.
 
+**The login in progress rides in a signed cookie** (`src/pending_login.rs`), not
+in a `state`-keyed map. NC's `oauth2/authorize` does not redirect back to a
+browser with no NC session — it bounces to its own Login Flow and drops every
+query parameter, returning to the callback with `state=` **empty**. Keyed on
+`state`, such a login can never complete: found 2026-07-28, when the Android
+wrapper's WebView lost its NC cookie and was locked out for good. The cookie
+binds the login to the browser that started it — the property `state` was there
+to prove — and, being self-contained, also survives a pod restart mid-login.
+`state` is still sent and still checked whenever NC returns it.
+
 CI: this repo's own `.github/workflows/build.yml` — a `verify` (clippy + cargo
 test against a throwaway MariaDB) and `fe-verify` (angular-eslint + unit tests +
 prod build) gate, then an `image` job that builds and pushes `xinutec/fleetwatch:latest`.

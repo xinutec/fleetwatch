@@ -12,6 +12,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod nextcloud;
+pub mod pending_login;
 pub mod report;
 pub mod routes;
 pub mod session;

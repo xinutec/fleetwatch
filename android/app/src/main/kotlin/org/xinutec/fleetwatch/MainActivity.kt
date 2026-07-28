@@ -24,7 +24,8 @@ import androidx.core.view.WindowInsetsCompat
  * A full-screen [WebView] onto fleetwatch — the fleet monitoring dashboard, an Angular
  * app served at [FLEETWATCH_URL]. No address bar, no tabs, a home-screen icon: the
  * status board presented as a native app, avoiding browser chrome. It's private
- * (reachable only over the VPN) with no login; the app needs only `INTERNET`.
+ * (reachable only over the VPN) and reads are behind a Nextcloud login, which the
+ * WebView performs interactively; the app itself needs only `INTERNET`.
  *
  * Deliberately tiny — a [ComponentActivity] holding one WebView, no Compose or
  * AppCompat. `configChanges` keeps the WebView (and its route + scroll) across
@@ -80,7 +81,7 @@ class MainActivity : ComponentActivity() {
                             isReload: Boolean,
                         ) {
                             super.doUpdateVisitedHistory(view, url, isReload)
-                            if (url.startsWith(FLEETWATCH_URL)) {
+                            if (Restore.isRestorable(FLEETWATCH_URL, url)) {
                                 prefs.edit { putString(KEY_LAST_URL, url) }
                             }
                             syncBackEnabled()

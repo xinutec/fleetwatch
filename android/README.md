@@ -13,7 +13,11 @@ login, which the WebView performs interactively.
 - Loads `https://fleetwatch.xinutec.org/` — **hardcoded** (`MainActivity.FLEETWATCH_URL`);
   this app is single-purpose.
 - JavaScript + DOM storage on (Angular), all navigation kept in-app, Back walks
-  the SPA history; reopens on the last in-app page.
+  the SPA history; reopens on the last in-app page — but never on a login hop
+  (`Restore.isRestorable`). An OAuth callback carries a one-shot code, so saving
+  one as the restore point turns a single failed login into a permanent one: the
+  app relaunches into a spent callback, is refused, and never reaches the
+  dashboard to try again. That is exactly how it stranded itself on 2026-07-28.
 - Insets the WebView from the system bars by padding a wrapper, and paints the
   strips behind the bars with the page's own surface colour (read on load, so it
   tracks the Material light/dark theme).
@@ -89,6 +93,7 @@ android/
 │       ├── AndroidManifest.xml                   # INTERNET + POST_NOTIFICATIONS
 │       ├── kotlin/org/xinutec/fleetwatch/
 │       │   ├── MainActivity.kt                   # the WebView (+ inset padding)
+│       │   ├── Restore.kt                        # which pages may be the reopen-on page
 │       │   ├── Problems.kt                       # /api/problems: parse, fingerprint, summarise
 │       │   └── Watch.kt                          # ProblemsWorker (30-min poll) + token storage
 │       └── res/                                  # launcher icon (heartbeat), theme, strings
