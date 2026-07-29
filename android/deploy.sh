@@ -54,7 +54,7 @@ for EP in "${CANDIDATES[@]}"; do
     echo "  WARN: no read token set — the problem poller will stay idle." >&2
     echo "  Add one with:  security add-generic-password -a $TOKEN_ACCT -s $TOKEN_SVC -w <token>" >&2
   fi
-  "$ADB" -s "$EP" shell am start -n org.xinutec.fleetwatch/.MainActivity >/dev/null
+  "$ADB" -s "$EP" shell am start -S -n org.xinutec.fleetwatch/.MainActivity >/dev/null
   echo "  installed + launched on Pixel 9 ($EP)."
   exit 0
 done
