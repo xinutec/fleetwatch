@@ -1,32 +1,16 @@
 import { defineConfig, devices } from '@playwright/test';
+import { phoneConfig } from '@xinutec/ui-harness/config';
+import harness from './e2e/harness.mjs';
 
 /**
- * Phone-width layout harness (shared @xinutec/ui-harness). Runs against the
- * real production build served by e2e/serve.mjs. `npm run ui-check`.
+ * Phone-width layout harness. Runs against the real production build, served by
+ * the shared harness. `npm run ui-check`.
  *
- * The viewport lives in the PROJECT `use`, not the global one: a device spread
- * carries its own viewport and project-level `use` overrides global — the exact
- * mistake that once ran life's "phone" tests at 1280×720. The one-line viewport
- * self-guard spec fails loudly if emulation is ever lost again.
+ * Everything shared — the Pixel geometry, the port, the static server — comes
+ * from @xinutec/ui-harness, including the rule this file used to have to state
+ * for itself: the viewport lives in the PROJECT `use`, not the global one,
+ * because a device spread carries its own viewport and project-level `use`
+ * overrides global. That is the mistake that once ran life's "phone" tests at
+ * 1280×720. What this app says about itself is in e2e/harness.mjs.
  */
-// Unique per app (life 4271, messages 4272, health 4273, home 4274, coach 4281,
-// gamepads 4291): reuseExistingServer + a shared port once made this suite run
-// against coach's leaked serve.mjs and "fail" on coach's DOM.
-const PORT = 4282;
-
-export default defineConfig({
-  testDir: './e2e',
-  reporter: [['list']],
-  timeout: 60_000,
-  projects: [{ name: 'chromium', use: { ...devices['Pixel 7'], deviceScaleFactor: 1 } }],
-  use: {
-    baseURL: `http://localhost:${PORT}`,
-    screenshot: 'only-on-failure',
-  },
-  webServer: {
-    command: `node e2e/serve.mjs ${PORT}`,
-    url: `http://localhost:${PORT}/`,
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
-});
+export default defineConfig(phoneConfig(harness, devices));
