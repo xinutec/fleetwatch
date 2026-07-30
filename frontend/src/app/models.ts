@@ -11,6 +11,7 @@ export type { MutedCheck } from './generated/MutedCheck';
 export type { Problems } from './generated/Problems';
 export type { Mute } from './generated/Mute';
 export type { NewMute } from './generated/NewMute';
+export type { TelemetryEvent } from './generated/TelemetryEvent';
 export type { CheckOut } from './generated/CheckOut';
 export type { ReportDetail } from './generated/ReportDetail';
 export type { ReportSummary } from './generated/ReportSummary';

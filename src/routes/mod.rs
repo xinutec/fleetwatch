@@ -5,6 +5,7 @@
 pub mod auth;
 pub mod ingest;
 pub mod mutes;
+pub mod telemetry;
 pub mod views;
 
 use axum::Router;
@@ -24,6 +25,8 @@ pub fn router(state: AppState) -> Router {
         .route("/history", get(views::history))
         .route("/mutes", get(mutes::list).post(mutes::create))
         .route("/mutes/{id}", delete(mutes::delete))
+        // What the person did, folded into the same log as what the API saw.
+        .route("/telemetry", post(telemetry::record))
         // One INFO line per API request. Scoped to /api so static-asset serving
         // and the k8s /healthz probe don't spam the log.
         .layer(
