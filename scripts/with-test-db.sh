@@ -13,11 +13,28 @@ set -euo pipefail
 
 PORT="${FLEETWATCH_TEST_DB_PORT:-3317}"
 DBDIR="$(mktemp -d "${TMPDIR:-/tmp}/fleetwatch-test-db.XXXXXX")"
-SOCKET="$DBDIR/mysqld.sock"
+
+# The socket lives OUTSIDE the datadir, in a short path of its own.
+#
+# A Unix socket path is capped at 103 bytes by the kernel, and $TMPDIR is not
+# short when this runs under nested nix-shells: `~/Code/check --full` invokes
+# this repo's verify inside its own shell, giving a $TMPDIR like
+# /private/tmp/nix-shell-<pid>-<n>/nix-shell.XXXXXX/nix-shell.XXXXXX/. The
+# datadir has no such limit, so only the socket needs to escape.
+#
+# It failed exactly one way: standalone `verify.sh` passed and the fleet gate
+# failed, with mariadbd aborting on "socket file path is too long" — a fault
+# that only appears when something else nests a shell around this one.
+SOCKDIR="$(mktemp -d /tmp/fw-sock.XXXXXX)"
+SOCKET="$SOCKDIR/d.sock"
+if [ ${#SOCKET} -gt 103 ]; then
+    echo "socket path is ${#SOCKET} bytes, over the 103 the kernel allows: $SOCKET" >&2
+    exit 1
+fi
 
 cleanup() {
     [ -n "${DB_PID:-}" ] && kill "$DB_PID" 2>/dev/null && wait "$DB_PID" 2>/dev/null
-    rm -rf "$DBDIR"
+    rm -rf "$DBDIR" "$SOCKDIR"
 }
 trap cleanup EXIT
 
