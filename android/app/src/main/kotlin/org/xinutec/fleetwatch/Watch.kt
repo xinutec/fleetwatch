@@ -221,8 +221,4 @@ object Prefs {
                 .readText()
                 .trim()
         }.getOrDefault("")
-
-    fun setReadToken(ctx: Context, token: String) {
-        java.io.File(ctx.filesDir, TOKEN_FILE).writeText(token.trim())
-    }
 }
