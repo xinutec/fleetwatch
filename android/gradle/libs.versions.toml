@@ -3,14 +3,12 @@
 agp = "8.13.0"
 kotlin = "2.4.0"
 coreKtx = "1.16.0"
-activity = "1.13.0"
 junit = "4.13.2"
 json = "20240303"
 work = "2.10.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 androidx-work = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 json = { group = "org.json", name = "json", version.ref = "json" }

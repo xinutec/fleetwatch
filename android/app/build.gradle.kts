@@ -39,12 +39,21 @@ kotlin {
     }
 }
 
+// Say so in a sentence rather than a stacktrace when the shell isn't beside us.
+// Resolved against rootDir (android/), so this is the same path settings.gradle.kts
+// includes — file() here would resolve against app/ and never match.
+require(rootDir.resolve("../../ui-harness/android").isDirectory) {
+    "ui-harness must be checked out beside this repo (~/Code/ui-harness)"
+}
+
 dependencies {
-    // WebView is part of the framework. core-ktx for the insets/prefs KTX and
-    // activity for the modern OnBackPressedDispatcher (predictive back). No
-    // Compose, no AppCompat: this app is a single WebView.
+    // The shared WebView shell (ui-harness/android), substituted to a project by
+    // settings.gradle.kts. No version, ever: it resolves by path. It brings
+    // androidx.activity with it (ComponentActivity is its superclass).
+    implementation("org.xinutec:shell")
+    // core-ktx for the prefs/insets KTX. No Compose, no AppCompat: this app is a
+    // single WebView.
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity)
     // WorkManager: the 30-minute background poll of /api/problems (ProblemsWorker).
     // It's the only reason this app is more than a WebView — it batches the wakeup with
     // the system's, which is what keeps the battery cost of "check every 30 min" at ~0.
