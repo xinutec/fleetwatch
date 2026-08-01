@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- dev-lint: android-webview allow=application/@android:enableOnBackInvokedCallback -->
-<!-- Sanctioned deviation (same as messages): this shell uses the modern
-     OnBackPressedDispatcher, so it opts into predictive back. Shells still on the
-     deprecated onBackPressed must NOT enable this flag until modernised (with the
-     flag on, a legacy onBackPressed stops being called on API 33+). -->
+<!-- dev-lint: android-webview (held identical to dev-lint's canonical WebView manifest) -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
