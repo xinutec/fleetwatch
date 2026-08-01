@@ -2,7 +2,7 @@
 // ESLint flat config for the Angular frontend. Type-aware (typescript-eslint
 // recommendedTypeChecked + stylisticTypeChecked) plus the Angular rules (forbid
 // inline template:/styles:, template a11y). Runs as the normal lint in CI:
-// `npm run lint`.
+// `pnpm run lint`.
 
 import angular from "angular-eslint";
 import tseslint from "typescript-eslint";

@@ -4,7 +4,7 @@ import harness from './e2e/harness.mjs';
 
 /**
  * Phone-width layout harness. Runs against the real production build, served by
- * the shared harness. `npm run ui-check`.
+ * the shared harness. `pnpm run ui-check`.
  *
  * Everything shared — the Pixel geometry, the port, the static server — comes
  * from @xinutec/ui-harness, including the rule this file used to have to state
