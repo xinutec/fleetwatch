@@ -21,7 +21,14 @@ import org.xinutec.shell.WebShellActivity
  * tapped problem notification to the problems page.
  */
 class MainActivity : WebShellActivity() {
-    override val shell = ShellConfig(url = FLEETWATCH_URL)
+    override val shell =
+        ShellConfig(
+            url = FLEETWATCH_URL,
+            // The app plus the Nextcloud login hop — without the second, the OAuth
+            // round-trip would be ejected to the browser and the app could never
+            // sign in again. Everything else opens in the real browser.
+            allowedHosts = setOf("fleetwatch.xinutec.org", NC_HOST),
+        )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +63,9 @@ class MainActivity : WebShellActivity() {
     companion object {
         // The fleetwatch dashboard (HTTPS, VPN-only; reads are behind a Nextcloud login).
         private const val FLEETWATCH_URL = "https://fleetwatch.xinutec.org/"
+
+        // The Nextcloud identity provider the login bounces through.
+        private const val NC_HOST = "dash.xinutec.org"
         private const val PROBLEMS_URL = "https://fleetwatch.xinutec.org/problems"
 
         /** Set by the poller's notification: open on the problems page, not the last page. */
