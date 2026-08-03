@@ -47,7 +47,7 @@ nix develop -c bash -c '
   if [ ! -d frontend/node_modules ] || [ frontend/pnpm-lock.yaml -nt frontend/node_modules ]; then
     ( cd frontend && pnpm install --frozen-lockfile )
   fi
-  ( cd frontend && pnpm run lint && pnpm exec ng build && pnpm test && pnpm run ui-check )
+  ( cd frontend && pnpm run lint && pnpm run typecheck:e2e && pnpm exec ng build && pnpm test && pnpm run ui-check )
 '
 # The Android poller is a real client with real logic (warning filtering,
 # fingerprinting, notification decisions) — it compiles and its unit tests run
