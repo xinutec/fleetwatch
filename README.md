@@ -64,7 +64,7 @@ nix develop -c cargo run                              # API on :8080
 
 nix develop -c scripts/gen-types.sh                   # regenerate TS types
 FLEETWATCH_TEST_DATABASE_URL=$DATABASE_URL nix develop -c cargo test   # incl. DB tests
-./scripts/verify.sh                                   # full gate
+nix run ../dev-lint#gate -- . gate.json                # full gate (gate.dhall)
 ```
 
 ## Deploy (isis)

@@ -59,7 +59,7 @@ same stack as the rest of the fleet so `~/Code/check` keeps it consistent.
 |---|---|---|---|
 | `fleet_health.py` | `xinutec-infra/mac-mini/` | hosts, k3s pods, backups+drills, restic, TLS/DNS, blocklists, healthchecks.io, VPN one-way, git drift | ANSI text, exit code |
 | `doc_checks.py` | `xinutec-infra/mac-mini/` | documented claims vs live fleet, each with `file:line` ref | ANSI text, exit code |
-| `~/Code/check` (`dev_lint.fleet`) | dev-lint engine + `~/Code/check` config | fleet consistency, per-repo dev-lint, per-repo `verify.sh` (`--full`) | ANSI text, exit code |
+| `~/Code/check` (`dev_lint.fleet`) | dev-lint engine + `~/Code/check` config | fleet consistency, per-repo dev-lint, per-repo gate (`--full`) | ANSI text, exit code |
 | `dev-lint` | `~/Code/dev-lint` | per-file `path:line:col: RULE msg` | text, exit code |
 
 At design time none emitted JSON, but all held structured data in memory
