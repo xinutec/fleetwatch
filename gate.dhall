@@ -38,26 +38,27 @@ check's output only when it fails, so the cost is noise on a hand-run.
 
 The generated `gate.json` is committed; `the table matches its Dhall` re-renders
 and diffs it, so running the gate needs no `dhall`.
+
+**The vocabulary moved into the schema.** `inDevShell`, the clippy target
+directory, the Angular worker cap, and the `ng-build` / `dev-lint` /
+`check-table` rows were spelled out here and in a dozen other tables
+identically — the duplication the shared tools were built to remove, recreated
+one level up. They are `G.` values now. Two consequences the rendered JSON
+shows: every dev-shell row gains `--no-warn-dirty`, because a gate that prints
+"Git tree is dirty" on every row of every run has trained everyone to ignore a
+warning; and dev-lint is pinned to its committed HEAD rather than run out of its
+worktree, which is what stops a neighbour's half-finished edit failing this gate
+for a reason no commit anywhere explains.
+
 -}
 
 let G = ../dev-lint/gate/schema.dhall
-
-let inDevShell = \(argv : List Text) -> [ "nix", "develop", "--command" ] # argv
-
-{-| `ng build` tears down its Piscina worker pool at process exit; on macOS /
-    Node 24 / libuv 1.52 that teardown intermittently aborts the process AFTER a
-    complete, valid bundle is on disk. This lowers the rate — fewer worker pipes
-    to race — but does not eliminate it. The build row does not need this: it
-    goes through `ng-build`, which sets the knob itself and then decides from the
-    artifact anyway. These are the rows that drive a build indirectly.
--}
-let oneAngularWorker = toMap { NG_BUILD_MAX_WORKERS = "1" }
 
 in  { name = "fleetwatch"
     , checks =
       [ G.Check::{
         , name = "formatting"
-        , argv = inDevShell [ "cargo", "fmt", "--all", "--check" ]
+        , argv = G.inDevShell [ "cargo", "fmt", "--all", "--check" ]
         , timeout_s = 180
         }
       , {-  Clippy gets its own target directory: clippy-driver and rustc
@@ -73,10 +74,9 @@ in  { name = "fleetwatch"
         G.Check::{
         , name = "clippy"
         , argv =
-            inDevShell [ "cargo", "clippy", "--all-targets", "--", "-D", "warnings" ]
+            G.inDevShell [ "cargo", "clippy", "--all-targets", "--", "-D", "warnings" ]
         , env =
-            toMap
-              { CARGO_TARGET_DIR = "/Users/pippijn/.cache/cargo/clippy-target" }
+            G.clippyTarget
         , timeout_s = 1800
         }
       , {-  The whole suite, `tests/*_db.rs` included, against a throwaway
@@ -91,7 +91,7 @@ in  { name = "fleetwatch"
         G.Check::{
         , name = "tests (against a real MariaDB)"
         , argv =
-              inDevShell [ "nix", "run", "../dev-lint#with-test-db", "--" ]
+              G.inDevShell [ "nix", "run", "../dev-lint#with-test-db", "--" ]
             # [ "--database"
               , "fleetwatch"
               , "--user"
@@ -110,7 +110,7 @@ in  { name = "fleetwatch"
         }
       , G.Check::{
         , name = "generated types regenerate"
-        , argv = inDevShell [ "scripts/gen-types.sh" ]
+        , argv = G.inDevShell [ "scripts/gen-types.sh" ]
         , timeout_s = 900
         }
       , {-  Drift: the regeneration above against what is committed. Compares the
@@ -137,19 +137,19 @@ in  { name = "fleetwatch"
         G.Check::{
         , name = "frontend deps match the lockfile"
         , cwd = "frontend"
-        , argv = inDevShell [ "pnpm", "install", "--frozen-lockfile" ]
+        , argv = G.inDevShell [ "pnpm", "install", "--frozen-lockfile" ]
         , timeout_s = 900
         }
       , G.Check::{
         , name = "frontend lint"
         , cwd = "frontend"
-        , argv = inDevShell [ "pnpm", "run", "lint" ]
+        , argv = G.inDevShell [ "pnpm", "run", "lint" ]
         , timeout_s = 900
         }
       , G.Check::{
         , name = "frontend typecheck (e2e)"
         , cwd = "frontend"
-        , argv = inDevShell [ "pnpm", "run", "typecheck:e2e" ]
+        , argv = G.inDevShell [ "pnpm", "run", "typecheck:e2e" ]
         , timeout_s = 900
         }
       , {-  `../../dev-lint`, not `../dev-lint`: cwd is `fleetwatch/frontend`.
@@ -158,22 +158,17 @@ in  { name = "fleetwatch"
         , name = "frontend build"
         , cwd = "frontend"
         , argv =
-              inDevShell [ "nix", "run", "../../dev-lint#ng-build", "--" ]
-            # [ "--expect"
-              , "dist/fleetwatch-web/browser"
-              , "--"
-              , "pnpm"
-              , "exec"
-              , "ng"
-              , "build"
-              ]
+            G.ngBuild
+              "../../"
+              [ "dist/fleetwatch-web/browser" ]
+              [ "pnpm", "exec", "ng", "build" ]
         , timeout_s = 1800
         }
       , G.Check::{
         , name = "frontend unit tests"
         , cwd = "frontend"
-        , argv = inDevShell [ "pnpm", "test" ]
-        , env = oneAngularWorker
+        , argv = G.inDevShell [ "pnpm", "test" ]
+        , env = G.oneAngularWorker
         , timeout_s = 1800
         }
       , {-  The L2 phone-width layout harness: `e2e/serve.mjs` serves the dist the
@@ -183,7 +178,7 @@ in  { name = "fleetwatch"
         G.Check::{
         , name = "frontend ui-check (phone-width layout harness)"
         , cwd = "frontend"
-        , argv = inDevShell [ "pnpm", "run", "ui-check" ]
+        , argv = G.inDevShell [ "pnpm", "run", "ui-check" ]
         , timeout_s = 1800
         }
       , {-  The Android poller is a real client with real logic — warning
@@ -221,27 +216,7 @@ in  { name = "fleetwatch"
             ]
         , timeout_s = 1800
         }
-      , G.Check::{
-        , name = "the table matches its Dhall"
-        , argv =
-            [ "nix"
-            , "run"
-            , "../dev-lint#gate"
-            , "--"
-            , "--check-table"
-            , "gate.dhall"
-            , "gate.json"
-            ]
-        , timeout_s = 120
-        }
-      , {-  Shared fleet rules over the whole repository. `nix run`, never
-            result/bin — a pinned build goes stale and silently misses rules
-            shipped since.
-        -}
-        G.Check::{
-        , name = "dev-lint"
-        , argv = [ "nix", "run", "../dev-lint", "--", "." ]
-        , timeout_s = 900
-        }
+      , G.checkTable "../dev-lint"
+      , G.devLint "../"
       ]
     }

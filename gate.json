@@ -4,6 +4,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "cargo",
         "fmt",
@@ -19,6 +20,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "cargo",
         "clippy",
@@ -38,6 +40,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "nix",
         "run",
@@ -66,6 +69,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "scripts/gen-types.sh"
       ],
@@ -92,6 +96,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "pnpm",
         "install",
@@ -106,6 +111,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "pnpm",
         "run",
@@ -120,6 +126,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "pnpm",
         "run",
@@ -134,6 +141,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "nix",
         "run",
@@ -156,6 +164,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "pnpm",
         "test"
@@ -171,6 +180,7 @@
       "argv": [
         "nix",
         "develop",
+        "--no-warn-dirty",
         "--command",
         "pnpm",
         "run",
@@ -224,13 +234,13 @@
       "cwd": ".",
       "env": {},
       "name": "the table matches its Dhall",
-      "timeout_s": 120
+      "timeout_s": 300
     },
     {
       "argv": [
         "nix",
         "run",
-        "../dev-lint",
+        "git+file:../dev-lint?ref=HEAD",
         "--",
         "."
       ],
