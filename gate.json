@@ -71,11 +71,27 @@
         "develop",
         "--no-warn-dirty",
         "--command",
-        "scripts/gen-types.sh"
+        "scripts/gen-types.sh",
+        "--check"
       ],
       "cwd": ".",
       "env": {},
-      "name": "generated types regenerate",
+      "name": "generated types are current",
+      "timeout_s": 900
+    },
+    {
+      "argv": [
+        "nix",
+        "develop",
+        "--no-warn-dirty",
+        "--command",
+        "cargo",
+        "test",
+        "export_golden"
+      ],
+      "cwd": ".",
+      "env": {},
+      "name": "the golden wire fixture regenerates",
       "timeout_s": 900
     },
     {
@@ -84,12 +100,11 @@
         "diff",
         "--exit-code",
         "--",
-        "frontend/src/app/generated",
         "tests/golden"
       ],
       "cwd": ".",
       "env": {},
-      "name": "generated types are current",
+      "name": "the golden wire fixture is current",
       "timeout_s": 120
     },
     {

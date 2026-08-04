@@ -7,8 +7,9 @@
 //! stop seeing problems, which is the exact failure fleetwatch exists to catch.
 //! The golden file makes that drift loud:
 //!
-//! - this test regenerates the fixture from the real Rust types (also via
-//!   `scripts/gen-types.sh`; verify.sh fails when the committed copy differs),
+//! - this test regenerates the fixture from the real Rust types — run it with
+//!   `cargo test export_golden`; the gate runs it and then fails on
+//!   `git diff --exit-code -- tests/golden` when the committed copy differs,
 //! - the Android unit tests (`GoldenWireTest.kt`) parse the same file and
 //!   assert on every field the poller consumes.
 //!

@@ -40,16 +40,29 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test -- --test-threads=1
       # The committed TS types + golden wire fixture must match the Rust types.
-      # verify.sh gates this locally via the pre-commit hook, but a clone
+      # gate.dhall gates this locally via the pre-commit hook, but a clone
       # without hooks could push drift — without this step CI would merge it.
+      #
+      # Deliberately NOT `scripts/gen-types.sh`, which this step used to call:
+      # that wrapper is `nix run ../dev-lint#gen-types` now, and a runner has
+      # neither nix nor the private sibling repo. Same reason dev-lint itself
+      # runs in no workflow in the fleet. What it does — generate into a clean
+      # directory, install only on success — is spelled out here instead, and
+      # `mv` is what makes a REMOVED Rust type fail rather than linger as a
+      # committed file nothing generates any more.
+      #
       # Plain file diffs, NOT `git diff`: in container jobs the index is written
       # by the runner's mounted (newer) git and read here by the image's older
       # one, which misreports a clean regeneration as wholesale deletions
       # (observed 2026-07-16). Copies of the committed files need no index.
+      #
+      # TS_RS_EXPORT_DIR comes from .cargo/config.toml, so `cargo test export_`
+      # writes the bindings back into frontend/src/app/generated; the golden
+      # fixture resolves its own path and writes tests/golden in place.
       - run: |
-          cp -r frontend/src/app/generated /tmp/committed-generated
+          mv frontend/src/app/generated /tmp/committed-generated
           cp tests/golden/problems.json /tmp/committed-problems.json
-          scripts/gen-types.sh
+          cargo test export_
           diff -ru /tmp/committed-generated frontend/src/app/generated
           diff -u /tmp/committed-problems.json tests/golden/problems.json
 

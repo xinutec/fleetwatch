@@ -18,10 +18,14 @@ manual re-run, and no assertion was ever made about what the build produced.
 `ng-build` decides from the artifact instead: index.html present, non-empty,
 rewritten by this run, and every script it names parseable as an ES module.
 
-**The type-drift check is two rows.** It was `gen-types.sh` followed by
-`git diff --quiet`, which reports one name for two different faults — a
-regeneration that failed, and a regeneration nobody committed. `git diff
---exit-code` needs no shell around it, so the split costs nothing.
+**The type-drift check stopped asking git.** It was `gen-types.sh` followed by
+`git diff --quiet` over both generated directories, which reports one name for
+two different faults — a regeneration that failed, and a regeneration nobody
+committed — and, worse, cannot see an untracked file at all, so a brand-new wire
+type left the row green. The ts-rs half is `gen-types --check` now, which
+compares content and writes nothing. The golden fixture keeps generate-then-diff,
+because it is one tracked file overwritten in place and has no added-file case to
+miss; the rows below say so at length.
 
 **The conditional `pnpm install` is gone**, for the reason gamepads', coach's and
 memview's were: its own comment justified it on correctness — a node_modules left
@@ -108,25 +112,53 @@ in  { name = "fleetwatch"
               ]
         , timeout_s = 1800
         }
-      , G.Check::{
-        , name = "generated types regenerate"
-        , argv = G.inDevShell [ "scripts/gen-types.sh" ]
-        , timeout_s = 900
-        }
-      , {-  Drift: the regeneration above against what is committed. Compares the
-            worktree to the git *index*, as the script did — so `git add -A`
-            first, or this reads a stale tree.
+      , {-  Generated-types drift: regenerate the ts-rs bindings into a scratch
+            directory and fail if the committed frontend output differs. Catches
+            a Rust API-type edit that was not regenerated and committed.
+
+            This was two rows — `gen-types.sh`, then `git diff --exit-code` over
+            both output directories — and asking git was the defect. `git diff`
+            cannot see an untracked file, so a NEW wire type generated but never
+            `git add`ed left the row green: measured on life, same tree, exit 0
+            from `git diff --quiet` against exit 1 from `gen-types --check`.
+            Comparing content against the committed directory has no such blind
+            spot, and it writes nothing, so the gate no longer regenerates the
+            worktree as a side effect of checking it.
         -}
         G.Check::{
         , name = "generated types are current"
-        , argv =
-            [ "git"
-            , "diff"
-            , "--exit-code"
-            , "--"
-            , "frontend/src/app/generated"
-            , "tests/golden"
-            ]
+        , argv = G.inDevShell [ "scripts/gen-types.sh", "--check" ]
+        , timeout_s = 900
+        }
+      , {-  The golden wire fixture (tests/golden/problems.json) — the shape the
+            Android poller hand-parses with org.json, where a renamed field would
+            not crash anything, it would quietly stop reporting problems.
+
+            Still generate-then-diff, and deliberately so. `export_golden_problems`
+            resolves CARGO_MANIFEST_DIR itself, so unlike the ts-rs bindings it
+            cannot be redirected into a scratch directory; it overwrites one
+            tracked file in place and never clears first, so a failed run leaves
+            the committed fixture standing. That also removes the blind spot
+            above: with a single tracked file there is no added-file case for
+            git to miss. A fifth shared tool for "run this and the directory must
+            come out unchanged" would have exactly one consumer and no defect
+            behind it, which is the kind of speculative vocabulary this whole
+            migration has been removing.
+
+            Two rows, because a generation that fails to compile and a
+            regeneration nobody committed are different faults.
+        -}
+        G.Check::{
+        , name = "the golden wire fixture regenerates"
+        , argv = G.inDevShell [ "cargo", "test", "export_golden" ]
+        , timeout_s = 900
+        }
+      , {-  Compares the worktree to the git *index* — so `git add -A` first, or
+            this reads a stale tree. The pre-commit hook does.
+        -}
+        G.Check::{
+        , name = "the golden wire fixture is current"
+        , argv = [ "git", "diff", "--exit-code", "--", "tests/golden" ]
         , timeout_s = 120
         }
       , {-  `--frozen-lockfile` is pnpm ci: install exactly pnpm-lock.yaml, or

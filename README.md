@@ -63,6 +63,7 @@ nix develop -c cargo run                              # API on :8080
 ( cd frontend && npm install && npm start )          # ng serve, proxies /api
 
 nix develop -c scripts/gen-types.sh                   # regenerate TS types
+nix develop -c cargo test export_golden               # regenerate tests/golden
 FLEETWATCH_TEST_DATABASE_URL=$DATABASE_URL nix develop -c cargo test   # incl. DB tests
 nix run ../dev-lint#gate -- . gate.json                # full gate (gate.dhall)
 ```

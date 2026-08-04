@@ -29,7 +29,7 @@ class GoldenWireTest {
         }
         throw AssertionError(
             "tests/golden/problems.json not found above ${System.getProperty("user.dir")} — " +
-                "regenerate with scripts/gen-types.sh",
+                "regenerate with `cargo test export_golden`",
         )
     }
 
