@@ -76,19 +76,37 @@ class ProblemsWorker(
         val prefs = Prefs.of(applicationContext)
         val last = prefs.getString(KEY_LAST_FINGERPRINT, "") ?: ""
         val now = alerting.fingerprint()
-        prefs.edit { putString(KEY_LAST_FINGERPRINT, now) }
 
-        when {
-            // Nothing wrong: clear any standing alert, so the notification tracks reality
-            // instead of lingering after the fleet recovers.
-            alerting.isEmpty -> notificationManager().cancel(NOTIFICATION_ID)
+        // ⚠ **Decide, act, and only THEN remember** — the sequence lives in Alerting.kt,
+        // on the JVM side, because storing `now` before notifying recorded an alert that
+        // could not be posted as delivered and left that problem set silent for ever.
+        // Everything Android-shaped stays here; only the ordering moved.
+        val mark =
+            poll(alerting, last) { step ->
+                when (step) {
+                    // Nothing wrong: clear any standing alert, so the notification tracks
+                    // reality instead of lingering after the fleet recovers.
+                    Step.CLEAR -> {
+                        notificationManager().cancel(NOTIFICATION_ID)
+                        true
+                    }
 
-            // Same problems as last poll: already told you. Staying quiet is what keeps
-            // the notification meaningful when it does fire.
-            now == last -> Log.i(TAG, "unchanged (${alerting.count} problem(s))")
+                    // Same problems as last poll: already told you. Staying quiet is what
+                    // keeps the notification meaningful when it does fire.
+                    Step.QUIET -> {
+                        Log.i(TAG, "unchanged (${alerting.count} problem(s))")
+                        true
+                    }
 
-            else -> notify(alerting)
+                    Step.FIRE -> {
+                        notify(alerting)
+                    }
+                }
+            }
+        if (mark != now) {
+            Log.w(TAG, "undelivered — keeping the old mark so the next poll tries again")
         }
+        prefs.edit { putString(KEY_LAST_FINGERPRINT, mark) }
         return Result.success()
     }
 
@@ -114,9 +132,14 @@ class ProblemsWorker(
     private fun notificationManager(): NotificationManager =
         applicationContext.getSystemService(NotificationManager::class.java)
 
-    private fun notify(problems: Problems) {
+    /** @return whether the notification actually reached the shade — see Alerting.kt. */
+    private fun notify(problems: Problems): Boolean {
         // Android 13+ can refuse to post without the runtime permission. MainActivity asks
         // for it; if it was denied, drop the notification rather than crash the worker.
+        //
+        // ⚠ Returning false rather than swallowing it: the caller must not record this as
+        // told, or the set is never announced again — not even once the permission is
+        // granted, because nothing else re-derives what the phone has shown you.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
                 applicationContext,
@@ -124,7 +147,7 @@ class ProblemsWorker(
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             Log.w(TAG, "POST_NOTIFICATIONS not granted — cannot alert")
-            return
+            return false
         }
 
         notificationManager().createNotificationChannel(
@@ -163,6 +186,7 @@ class ProblemsWorker(
 
         notificationManager().notify(NOTIFICATION_ID, notification)
         Log.i(TAG, "notified: ${problems.summary()}")
+        return true
     }
 
     companion object {

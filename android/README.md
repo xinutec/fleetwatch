@@ -52,7 +52,19 @@ asks on a timer; the server stays passive.
   which point the alerting is worse than none, because it looks like it works. The
   fingerprint deliberately ignores `observed`, which changes every poll during an
   ongoing outage ("last push 20 min ago" → "50 min ago").
+- **What is remembered is what was DELIVERED** (`Alerting.kt`). The fingerprint used to
+  be stored before the notification was attempted, and `notify()` returns early without
+  posting when POST_NOTIFICATIONS has been denied — so the mark said "already told you"
+  about something never shown, and every later poll took the quiet branch. Silent for
+  ever for that problem set, including after the permission was granted, because nothing
+  re-derives what the phone has actually displayed. `poll()` now takes the acting as a
+  parameter so the *order* is a JVM test rather than a comment; it could not be tested
+  inside the `CoroutineWorker`, which is how it went unexamined.
 - **Recovery clears it:** an empty problem set cancels the standing notification.
+- ⚠ **Not yet: escalation by age.** A failure is announced once and then never again
+  until it changes, so a build red for three days says exactly as much as one red for
+  thirty minutes. The anti-nagging argument above is about a problem *repeating*, and it
+  does not answer a problem *persisting*. Undecided, deliberately — see memview #667.
 - **Auth — a read token, not the session cookie.** A WorkManager job can't complete an
   interactive Nextcloud login, and reusing the WebView's NC cookie would work until it
   quietly expired, leaving a monitor that silently stops monitoring. So the poller uses
