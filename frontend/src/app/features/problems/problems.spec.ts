@@ -20,6 +20,7 @@ const CHECK: ProblemCheck = {
   observed: '96% used',
   expected: null,
   ref: null,
+  detail: null,
   collected_at: '2026-07-03T14:00:00Z',
 };
 

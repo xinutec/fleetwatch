@@ -11,6 +11,7 @@
       "observed": "last push 414 min ago",
       "expected": "< 30 min",
       "ref": "receivers.md:12",
+      "detail": "memview gate — 15 checks\n  x frontend build\n  x eslint",
       "collected_at": "2026-07-03T14:00:00Z"
     },
     {
@@ -24,6 +25,7 @@
       "observed": null,
       "expected": null,
       "ref": null,
+      "detail": null,
       "collected_at": "2026-07-03T14:05:00Z"
     }
   ],
@@ -38,6 +40,7 @@
       "verdict": "fail",
       "observed": "drill 40 days old",
       "ref": null,
+      "detail": null,
       "collected_at": "2026-07-03T14:10:00Z",
       "mute_id": "01JZFIXTURE0000000000000D",
       "reason": "drill scheduled for the weekend",

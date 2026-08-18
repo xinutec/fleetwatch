@@ -4,4 +4,8 @@ import type { Verdict } from "./Verdict";
 /**
  * A single failing/warning check surfaced on the problems view.
  */
-export type ProblemCheck = { source: string, collector: string, report_id: string, section: string, label: string, subject: string | null, verdict: Verdict, observed: string | null, expected: string | null, ref: string | null, collected_at: string, };
+export type ProblemCheck = { source: string, collector: string, report_id: string, section: string, label: string, subject: string | null, verdict: Verdict, observed: string | null, expected: string | null, ref: string | null, 
+/**
+ * The producer's captured log for a failing run, when it sent one.
+ */
+detail: string | null, collected_at: string, };

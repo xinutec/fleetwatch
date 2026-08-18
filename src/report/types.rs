@@ -164,6 +164,28 @@ pub struct ProblemCheck {
     pub expected: Option<String>,
     #[serde(rename = "ref")]
     pub doc_ref: Option<String>,
+    // ⚠ **A `///` here lands in frontend/src/app/generated/ProblemCheck.ts** —
+    // ts-rs copies doc comments into what it emits, so the rationale below would
+    // become twenty lines of incident history inside a generated wire type. The
+    // one-line contract is the doc comment; the reasons are these `//` ones.
+    //
+    // **This field is what makes a red gate attributable.** `observed` is a
+    // summary — for a gate row it is `"memview gate — 15 checks"`, a count with
+    // no identity — so triage from this endpoint could say a repo's gate was red
+    // and not which check inside it failed (#861).
+    //
+    // ⚠ **Returning it here was NOT sufficient, and the column alone is the
+    // trap.** Measured 2026-08-18 across the whole `check_result` table, the
+    // `verify` collector had populated `detail` ZERO times ever — so this field
+    // read null for exactly the rows it was added for until dev-lint's producer
+    // (`fleet.py`'s `_detail`) started sending it. A consumer change for data
+    // nobody produces looks identical to a fix.
+    //
+    // It costs the response almost nothing: on the live problems view that day,
+    // 56 of 57 rows had no detail at all. And it does not widen what the read
+    // token reaches — the same latest-report fail/warn rows, not history.
+    /// The producer's captured log for a failing run, when it sent one.
+    pub detail: Option<String>,
     #[ts(type = "string")]
     pub collected_at: DateTime<Utc>,
 }
@@ -184,6 +206,10 @@ pub struct MutedCheck {
     pub observed: Option<String>,
     #[serde(rename = "ref")]
     pub doc_ref: Option<String>,
+    // A muted row is still one somebody triages: deciding whether the mute is
+    // still the right call needs the same evidence. See `ProblemCheck::detail`.
+    /// The producer's captured log for a failing run, when it sent one.
+    pub detail: Option<String>,
     #[ts(type = "string")]
     pub collected_at: DateTime<Utc>,
     pub mute_id: String,

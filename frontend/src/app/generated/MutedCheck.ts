@@ -6,4 +6,8 @@ import type { Verdict } from "./Verdict";
  * its own section so a deliberate silence stays visible (not vanished), with
  * the reason and when it lapses.
  */
-export type MutedCheck = { source: string, collector: string, report_id: string, section: string, label: string, subject: string | null, verdict: Verdict, observed: string | null, ref: string | null, collected_at: string, mute_id: string, reason: string, expires_at: string, };
+export type MutedCheck = { source: string, collector: string, report_id: string, section: string, label: string, subject: string | null, verdict: Verdict, observed: string | null, ref: string | null, 
+/**
+ * The producer's captured log for a failing run, when it sent one.
+ */
+detail: string | null, collected_at: string, mute_id: string, reason: string, expires_at: string, };

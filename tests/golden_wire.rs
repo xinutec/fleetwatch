@@ -41,6 +41,10 @@ fn export_golden_problems() {
                 observed: Some("last push 414 min ago".into()),
                 expected: Some("< 30 min".into()),
                 doc_ref: Some("receivers.md:12".into()),
+                // Multi-line on purpose: `detail` is a captured gate log, and
+                // the Android poller hand-parses this shape with org.json. A
+                // single-line value would not exercise the escaping.
+                detail: Some("memview gate — 15 checks\n  x frontend build\n  x eslint".into()),
                 collected_at: at(14, 0),
             },
             // Every optional absent.
@@ -55,6 +59,7 @@ fn export_golden_problems() {
                 observed: None,
                 expected: None,
                 doc_ref: None,
+                detail: None,
                 collected_at: at(14, 5),
             },
         ],
@@ -68,6 +73,7 @@ fn export_golden_problems() {
             verdict: Verdict::Fail,
             observed: Some("drill 40 days old".into()),
             doc_ref: None,
+            detail: None,
             collected_at: at(14, 10),
             mute_id: "01JZFIXTURE0000000000000D".into(),
             reason: "drill scheduled for the weekend".into(),

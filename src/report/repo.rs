@@ -310,6 +310,7 @@ struct ProblemRow {
     observed: Option<String>,
     expected: Option<String>,
     doc_ref: Option<String>,
+    detail: Option<String>,
     collected_at: NaiveDateTime,
 }
 
@@ -327,7 +328,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
         latest_rn!(),
         " FROM report) x WHERE rn = 1) \
          SELECT c.source, c.collector, c.report_id, c.section, c.label, c.subject, \
-                c.verdict, c.observed, c.expected, c.doc_ref, c.collected_at \
+                c.verdict, c.observed, c.expected, c.doc_ref, c.detail, c.collected_at \
          FROM check_result c JOIN latest l ON c.report_id = l.id \
          WHERE c.verdict IN ('fail', 'warn') \
          ORDER BY FIELD(c.verdict, 'fail', 'warn'), c.source, c.collector, c.section, c.seq",
@@ -365,6 +366,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
                 verdict,
                 observed: r.observed.clone(),
                 doc_ref: r.doc_ref.clone(),
+                detail: r.detail.clone(),
                 collected_at: r.collected_at.and_utc(),
                 mute_id: m.id.clone(),
                 reason: m.reason.clone(),
@@ -381,6 +383,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
                 observed: r.observed.clone(),
                 expected: r.expected.clone(),
                 doc_ref: r.doc_ref.clone(),
+                detail: r.detail.clone(),
                 collected_at: r.collected_at.and_utc(),
             }),
         }
