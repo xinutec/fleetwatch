@@ -134,6 +134,29 @@
       </div>
     }
 
+    @if (d.lapsing.length > 0) {
+      <h3>Mutes lapsing soon</h3>
+      <p class="hint">
+        About to stop suppressing. Extend, fix the thing, or let it lapse — but
+        decide before it decides for you.
+      </p>
+      <div class="list">
+        @for (m of d.lapsing; track m.id) {
+          <mat-card appearance="outlined" class="row">
+            <mat-card-content class="row-body">
+              <span class="dot warn"></span>
+              <div class="row-main">
+                <span class="title">{{ m.label }}</span>
+                <span class="crumb tnum">{{ m.source }} · {{ m.collector }}</span>
+                <span class="detail">{{ m.reason }}</span>
+              </div>
+              <span class="pill warn">{{ expiresIn(m.expires_at) }}</span>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
+
     @if (d.muted.length > 0) {
       <h3>Muted</h3>
       <p class="hint">Deliberately silenced — not notified. Each lapses on its own.</p>

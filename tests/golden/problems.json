@@ -64,5 +64,17 @@
       "muted": 0,
       "total": 13
     }
+  ],
+  "lapsing": [
+    {
+      "id": "01JZFIXTURE0000000000000F",
+      "source": "odin",
+      "collector": "restic",
+      "label": "restic drill",
+      "reason": "drill scheduled for the weekend",
+      "created_by": "pippijn",
+      "created_at": "2026-07-03T01:00:00Z",
+      "expires_at": "2026-07-03T20:00:00Z"
+    }
   ]
 }

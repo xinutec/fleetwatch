@@ -25,7 +25,7 @@ const CHECK: ProblemCheck = {
 };
 
 function payload(overrides: Partial<ProblemsData> = {}): ProblemsData {
-  return { checks: [CHECK], muted: [], stale: [], ...overrides };
+  return { checks: [CHECK], muted: [], stale: [], lapsing: [], ...overrides };
 }
 
 /** Run scheduled effects so httpResource issues/settles its requests. NOT

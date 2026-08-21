@@ -68,7 +68,12 @@ export class Problems {
       !this.data.isLoading() &&
       d.checks.length === 0 &&
       d.muted.length === 0 &&
-      d.stale.length === 0
+      d.stale.length === 0 &&
+      // A mute about to lapse is not a fault, but it IS something on this page.
+      // Rendering a green tick and "all clear" directly above two mutes running
+      // out reads as a contradiction — and worse, invites the glance that stops
+      // at the tick, which is the glance this section exists to interrupt.
+      d.lapsing.length === 0
     );
   });
 

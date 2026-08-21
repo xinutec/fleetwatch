@@ -227,6 +227,16 @@ pub struct Problems {
     pub checks: Vec<ProblemCheck>,
     pub muted: Vec<MutedCheck>,
     pub stale: Vec<OverviewEntry>,
+    // Mutes about to run out. Synthesised here for the same reason `stale` is:
+    // no producer can emit it. A mute lapsing is a fact about this service's own
+    // state, and it is the ONE thing here that can be announced BEFORE it
+    // happens rather than after.
+    //
+    // The picades' mutes lapsed on 2026-08-19 and their failures reappeared with
+    // nothing said; the dashboard sat red for two days until Pippijn asked why.
+    // That silence is correct for the expiry itself — a mute must expire, and no
+    // reticketing is the point — but the expiry was knowable a week ahead.
+    pub lapsing: Vec<Mute>,
 }
 
 /// A live suppression of one check identity `(source, collector, label)`. Always

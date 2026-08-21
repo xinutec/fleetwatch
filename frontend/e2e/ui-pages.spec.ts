@@ -70,6 +70,16 @@ const PROBLEMS = {
     },
   ],
   stale: [OVERVIEW[2]],
+  // One mute inside the notice window, so the harness renders the section at
+  // phone width rather than only ever seeing it empty.
+  lapsing: [
+    {
+      id: '01JZE2E0000000000000000001', source: 'mac-mini', collector: 'fleet-health',
+      label: 'root filesystem usage above threshold',
+      reason: 'clearing caches this week', created_by: 'pippijn',
+      created_at: ago(86400), expires_at: ago(-3600),
+    },
+  ],
 };
 
 // A realistic trend: enough points for a line, mixed verdicts for the strip,

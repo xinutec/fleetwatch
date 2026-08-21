@@ -18,7 +18,7 @@
 
 use chrono::{DateTime, TimeZone, Utc};
 use fleetwatch::report::types::{
-    Freshness, MutedCheck, OverviewEntry, ProblemCheck, Problems, Verdict,
+    Freshness, Mute, MutedCheck, OverviewEntry, ProblemCheck, Problems, Verdict,
 };
 
 fn at(h: u32, m: u32) -> DateTime<Utc> {
@@ -94,6 +94,19 @@ fn export_golden_problems() {
             skip: 1,
             muted: 0,
             total: 13,
+        }],
+        // A mute in the last quarter of its life. The Android poller parses this
+        // by hand with org.json, so the field is here to pin its SHAPE — an
+        // expiry it can compare against now, and the identity it suppresses.
+        lapsing: vec![Mute {
+            id: "01JZFIXTURE0000000000000F".into(),
+            source: "odin".into(),
+            collector: "restic".into(),
+            label: "restic drill".into(),
+            reason: "drill scheduled for the weekend".into(),
+            created_by: "pippijn".into(),
+            created_at: at(1, 0),
+            expires_at: at(20, 0),
         }],
     };
 

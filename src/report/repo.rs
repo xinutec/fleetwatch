@@ -37,6 +37,12 @@ use crate::error::AppError;
 /// permanent, so a mute always has an expiry a human eventually re-decides.
 const MUTE_TTL_HOURS: std::ops::RangeInclusive<u32> = 1..=24 * 365;
 
+/// The most notice a lapsing mute gets. Two days: long enough to re-decide
+/// deliberately — extend it, fix the thing, or let it lapse — and short enough
+/// that a long mute is not flagged for months of its life. Capped rather than
+/// flat; see the filter in `problems()`.
+const LAPSE_WARNING: chrono::TimeDelta = chrono::TimeDelta::hours(48);
+
 /// Validate + store one uploaded report under `source` (from the token). Returns
 /// an ack marking whether this was a fresh store or an idempotent replay.
 ///
@@ -455,11 +461,41 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
         .filter(|e| e.freshness != Freshness::Fresh)
         .collect();
 
+    // Mutes in the last quarter of their life, capped at LAPSE_WARNING. The
+    // proportion is what makes this work across a TTL range of 1 hour to 365
+    // days: a flat window would call a one-hour mute "lapsing" for its whole
+    // life, and would give a year-long mute the same notice as a two-day one.
+    // Reuses `mutes`, already fetched above for the overlay — no second query.
+    let now = Utc::now();
+    let lapsing = mutes
+        .iter()
+        .filter(|m| is_lapsing(m, now))
+        .cloned()
+        .collect();
+
     Ok(Problems {
         checks,
         muted,
         stale,
+        lapsing,
     })
+}
+
+/// Is this mute close enough to running out to be worth announcing?
+///
+/// The last quarter of its life, capped at [`LAPSE_WARNING`]. The PROPORTION is
+/// what makes one rule work across a TTL range of an hour to a year: a flat
+/// window would flag a one-hour mute for its entire life, and would give a
+/// year-long mute the same two days' notice as a two-day one.
+///
+/// ⚠ A mute is therefore NEVER lapsing at the moment it is created — it has all
+/// of its life left. That is the intended behaviour and it is what
+/// `a_fresh_mute_is_not_announced_as_lapsing` pins; a test that creates a short
+/// mute and expects it to be announced is testing its own misreading, not this.
+pub fn is_lapsing(m: &Mute, now: DateTime<Utc>) -> bool {
+    let ttl = m.expires_at - m.created_at;
+    let notice = (ttl / 4).min(LAPSE_WARNING);
+    m.expires_at - now <= notice
 }
 
 /// Create a mute. `created_by` comes from the session; `expires_at` is derived

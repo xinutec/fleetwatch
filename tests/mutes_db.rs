@@ -6,7 +6,7 @@
 
 use chrono::{Duration, Utc};
 use fleetwatch::report::repo;
-use fleetwatch::report::types::{CheckUpload, NewMute, ReportUpload, Verdict};
+use fleetwatch::report::types::{CheckUpload, Mute, NewMute, ReportUpload, Verdict};
 use ulid::Ulid;
 
 mod common;
@@ -293,4 +293,88 @@ async fn create_mute_validates() {
     let a_year = Utc::now() + Duration::days(365);
     assert!(ceiling.expires_at <= a_year + Duration::hours(1));
     assert!(ceiling.expires_at > a_year - Duration::days(1));
+}
+
+/// A freshly created mute is NOT announced as lapsing — it has all of its life
+/// left.
+///
+/// ⚠ Pins the behaviour a first attempt at this test got wrong. That version
+/// created a two-hour mute and expected it announced, on the reasoning that two
+/// hours is "nearly up"; but a quarter of two hours is thirty minutes and the
+/// mute had two hours. The test was asserting its own misreading. Same shape as
+/// the tie-break test in tests/latest_report_db.rs, which built two timestamps
+/// it believed were equal and were milliseconds apart.
+#[tokio::test]
+async fn a_fresh_mute_is_not_announced_as_lapsing() {
+    let source = "test-lapsing";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping lapsing mute test");
+        return;
+    };
+    clean_mutes(&pool, source).await;
+    repo::create_mute(
+        &pool,
+        &NewMute {
+            source: source.into(),
+            collector: "c".into(),
+            label: "just made".into(),
+            reason: "brand new".into(),
+            ttl_hours: 2,
+        },
+        "tester",
+    )
+    .await
+    .expect("mute");
+
+    let lapsing: Vec<String> = repo::problems(&pool)
+        .await
+        .unwrap()
+        .lapsing
+        .into_iter()
+        .filter(|m| m.source == source)
+        .map(|m| m.label)
+        .collect();
+    assert!(
+        lapsing.is_empty(),
+        "a mute created seconds ago has its whole life left: {lapsing:?}"
+    );
+
+    clean_mutes(&pool, source).await;
+    common::clean(&pool, source).await;
+}
+
+/// The notice is a PROPORTION capped at two days, and these are the cases that
+/// shape exists to separate. No database: it is arithmetic over two timestamps,
+/// and routing it through a table would only prove the table works.
+#[test]
+fn the_lapse_notice_is_proportional_and_capped() {
+    let now = Utc::now();
+    let mute = |made_h: i64, expires_in_h: i64| Mute {
+        id: "x".into(),
+        source: "s".into(),
+        collector: "c".into(),
+        label: "l".into(),
+        reason: "r".into(),
+        created_by: "t".into(),
+        created_at: now - Duration::hours(made_h),
+        expires_at: now + Duration::hours(expires_in_h),
+    };
+
+    // A week-long mute: a quarter is 42h, under the cap. Six days in with a day
+    // left it is announced; one day in with six left it is not.
+    assert!(repo::is_lapsing(&mute(6 * 24, 24), now));
+    assert!(!repo::is_lapsing(&mute(24, 6 * 24), now));
+
+    // ⚠ The CAP stops a long mute being flagged for months. A quarter of a year
+    // is 91 days, and being told for a quarter of the year is not being told.
+    assert!(!repo::is_lapsing(&mute(300 * 24, 60 * 24), now));
+    assert!(repo::is_lapsing(&mute(364 * 24, 24), now));
+
+    // ⚠ The PROPORTION stops a short mute being flagged for its whole life. An
+    // hour-long mute gets fifteen minutes' notice, not two days'.
+    assert!(!repo::is_lapsing(&mute(0, 1), now));
+
+    // Already expired reads as lapsing rather than as anything stranger. Only a
+    // boundary: the active-mute query has dropped it long before here.
+    assert!(repo::is_lapsing(&mute(48, -1), now));
 }
