@@ -3,7 +3,9 @@
 //! in the `fleetwatch` library crate.
 
 use anyhow::Result;
-use fleetwatch::{config::Config, db, report::retention, routes, session, state::AppState};
+use fleetwatch::{
+    config::Config, db, report::repo, report::retention, routes, session, state::AppState,
+};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -17,6 +19,20 @@ async fn main() -> Result<()> {
     let cfg = Config::from_env()?;
     let pool = db::connect(&cfg.database_url).await?;
     db::migrate(&pool).await?;
+
+    // Reconcile the latest-report pointer with the history it summarises. Cheap
+    // (one pass over `report`), and it closes the one window this deployment
+    // shape leaves open: during a rolling update the OLD pod keeps accepting
+    // reports after the new one has migrated, and it does not know to maintain
+    // the pointer. A report landing in those seconds would leave its producer's
+    // tile pointing at the previous run — indistinguishable, to the staleness
+    // rules, from a producer that had gone quiet.
+    match repo::rebuild_latest_report(&pool).await {
+        Ok(n) => tracing::info!("latest_report: reconciled, {n} row(s) written"),
+        // Not fatal: the pointer is maintained on ingest, so a failure here
+        // costs freshness of the reconciliation, not the service.
+        Err(e) => tracing::warn!("latest_report reconcile failed: {e:#}"),
+    }
 
     // Daily retention sweep (the first tick fires immediately, so boot also
     // sweeps). Prunes raw payloads early and old checks; report summaries stay.
