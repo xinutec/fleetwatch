@@ -18,9 +18,11 @@ use super::types::{
 };
 
 /// The window that ranks each (source, collector)'s reports newest-first —
-/// `rn = 1` is the latest report. One spelling, shared by `overview()` and
-/// `problems()` (a macro, not a const: `concat!` resolves it at compile time,
-/// which keeps the SQL a checkable literal).
+/// `rn = 1` is the latest report. The read paths no longer run it: they join
+/// `latest_report`, which ingest maintains (migration 0005). It survives as the
+/// definition that pointer has to agree with — `rebuild_latest_report` is this
+/// window, and so is the migration's backfill. (A macro, not a const: `concat!`
+/// resolves it at compile time, which keeps the SQL a checkable literal.)
 macro_rules! latest_rn {
     () => {
         "ROW_NUMBER() OVER \
@@ -150,6 +152,39 @@ pub async fn ingest(
         )
         .await?;
     }
+    // Advance the pointer the read paths join (migration 0005), in the same
+    // transaction as the report — so a reader never sees a report without its
+    // pointer, nor a pointer into a half-written one.
+    //
+    // It only ever advances. A spool draining after a network flap replays older
+    // reports, and those must not drag the pointer backwards.
+    //
+    // The order of the SET list matters: `report_id` is assigned first because
+    // its comparison reads the OLD `collected_at`. Assign `collected_at` first
+    // and a newer report whose ULID happens to sort lower stops taking the
+    // pointer — see tests/latest_report_db.rs, which fails on exactly that swap.
+    sqlx::query(
+        "INSERT INTO latest_report (source, collector, report_id, collected_at) \
+         VALUES (?, ?, ?, ?) \
+         ON DUPLICATE KEY UPDATE \
+           report_id    = IF(? > collected_at \
+                             OR (? = collected_at AND ? > report_id), ?, report_id), \
+           collected_at = IF(? > collected_at, ?, collected_at)",
+    )
+    .bind(source)
+    .bind(&upload.collector)
+    .bind(&upload.id)
+    .bind(collected)
+    .bind(collected) // report_id: strictly newer?
+    .bind(collected) //            …or the same instant
+    .bind(&upload.id) //           with a larger id?
+    .bind(&upload.id) //           → then take it
+    .bind(collected) // collected_at: strictly newer?
+    .bind(collected) //               → then take it
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::from)?;
+
     tx.commit().await.map_err(AppError::from)?;
 
     Ok(IngestAck {
@@ -193,6 +228,29 @@ async fn insert_check(
     .await
     .map_err(AppError::from)?;
     Ok(())
+}
+
+/// Recompute `latest_report` from `report`, returning the rows written.
+///
+/// Ingest maintains the pointer; this is the repair path. It is needed after any
+/// hand-deletion of reports, because the foreign key drops a pointer rather than
+/// falling back to the previous report (migration 0005 says why), and it is the
+/// same statement that migration's backfill runs — so if the two ever disagree,
+/// this is the one that decides.
+pub async fn rebuild_latest_report(pool: &MySqlPool) -> Result<u64> {
+    let written = sqlx::query(concat!(
+        "INSERT INTO latest_report (source, collector, report_id, collected_at) \
+         SELECT x.source, x.collector, x.id, x.collected_at \
+         FROM (SELECT id, source, collector, collected_at, ",
+        latest_rn!(),
+        " FROM report) x WHERE x.rn = 1 \
+         ON DUPLICATE KEY UPDATE report_id    = VALUES(report_id), \
+                                 collected_at = VALUES(collected_at)",
+    ))
+    .execute(pool)
+    .await?
+    .rows_affected();
+    Ok(written)
 }
 
 fn parse_verdict(s: &str) -> Result<Verdict> {
@@ -240,26 +298,30 @@ pub async fn overview(pool: &MySqlPool) -> Result<Vec<OverviewEntry>> {
     let rows: Vec<LatestRow> = sqlx::query_as(
         // SUM over a boolean is DECIMAL in MariaDB; CAST back to UNSIGNED so the
         // column decodes into u32.
-        concat!(
-            "SELECT x.id, x.source, x.collector, x.collected_at, x.interval_s, \
-                x.n_pass, x.n_warn, x.n_fail, x.n_skip, \
+        //
+        // `latest_report` is joined twice on purpose. The outer join picks the
+        // tiles; the inner one confines the muted-count aggregate to those same
+        // reports, reachable by idx_check_report. Without it the subquery groups
+        // over every check ever stored to answer a question about the current
+        // ones — the same defect as the window this replaced, one level down.
+        "SELECT r.id, r.source, r.collector, r.collected_at, r.interval_s, \
+                r.n_pass, r.n_warn, r.n_fail, r.n_skip, \
                 CAST(COALESCE(m.muted_fail, 0) AS UNSIGNED) AS muted_fail, \
                 CAST(COALESCE(m.muted_warn, 0) AS UNSIGNED) AS muted_warn \
-         FROM (SELECT r.*, ",
-            latest_rn!(),
-            " FROM report r) x \
+         FROM latest_report l \
+         JOIN report r ON r.id = l.report_id \
          LEFT JOIN ( \
            SELECT c.report_id, \
                   SUM(c.verdict = 'fail') AS muted_fail, \
                   SUM(c.verdict = 'warn') AS muted_warn \
-           FROM check_result c \
+           FROM latest_report ll \
+           JOIN check_result c ON c.report_id = ll.report_id \
            JOIN mute mu ON mu.source = c.source AND mu.collector = c.collector \
                        AND mu.label = c.label AND mu.expires_at > ? \
            WHERE c.verdict IN ('fail', 'warn') \
            GROUP BY c.report_id \
-         ) m ON m.report_id = x.id \
-         WHERE x.rn = 1 ORDER BY x.source, x.collector",
-        ),
+         ) m ON m.report_id = r.id \
+         ORDER BY r.source, r.collector",
     )
     // Bind UTC now rather than SQL NOW(3): the DB server clock is local, and the
     // stored timestamps are UTC — comparing them in SQL would offset the mute
@@ -323,16 +385,14 @@ struct ProblemRow {
 /// mute is matched in Rust against the active-mute set rather than a SQL join, so
 /// two overlapping mutes on one identity can't duplicate a row.
 pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
-    let rows: Vec<ProblemRow> = sqlx::query_as(concat!(
-        "WITH latest AS (SELECT id FROM (SELECT id, ",
-        latest_rn!(),
-        " FROM report) x WHERE rn = 1) \
-         SELECT c.source, c.collector, c.report_id, c.section, c.label, c.subject, \
+    let rows: Vec<ProblemRow> = sqlx::query_as(
+        "SELECT c.source, c.collector, c.report_id, c.section, c.label, c.subject, \
                 c.verdict, c.observed, c.expected, c.doc_ref, c.detail, c.collected_at \
-         FROM check_result c JOIN latest l ON c.report_id = l.id \
+         FROM latest_report l \
+         JOIN check_result c ON c.report_id = l.report_id \
          WHERE c.verdict IN ('fail', 'warn') \
          ORDER BY FIELD(c.verdict, 'fail', 'warn'), c.source, c.collector, c.section, c.seq",
-    ))
+    )
     .fetch_all(pool)
     .await?;
 

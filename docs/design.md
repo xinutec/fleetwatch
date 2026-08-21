@@ -138,9 +138,20 @@ Indexes: `report(source, collector, collected_at)`;
 `check_result(source, collector, section, label, collected_at)` for history;
 `check_result(verdict, collected_at)` for the problems view.
 
-Later migrations added `sessions` (0002, see §6), `mute` (0003, see §5), and made
+Later migrations added `sessions` (0002, see §6), `mute` (0003, see §5), made
 `verdict` an ENUM (0004) so a corrupt write fails at the producer — where the
-spool retry makes it visible — instead of poisoning reads.
+spool retry makes it visible — instead of poisoning reads, and added
+`latest_report` (0005).
+
+`latest_report(source, collector) → report_id` is the newest report per
+producer, written by ingest in the report's own transaction. Both read views need
+that answer and both used to derive it per request, by ranking the entire
+`report` table with a window function; the cost grew with history to re-answer a
+question that only changes on ingest, and concurrent polling of it exhausted the
+connection pool. Storing it where it is decided makes both reads an indexed join.
+The pointer's ordering is the window's — newer `collected_at` wins, ties broken
+by the larger id — and `repo::rebuild_latest_report` recomputes it from `report`
+when the two need re-reconciling.
 
 **Volume estimate**: ~200 checks/report × hourly × 3 collectors ≈ 15–20k check
 rows/day, ~7M/year — comfortable for MariaDB with the above indexes. Raw payloads
