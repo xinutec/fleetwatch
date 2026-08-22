@@ -153,6 +153,27 @@ The pointer's ordering is the window's — newer `collected_at` wins, ties broke
 by the larger id — and `repo::rebuild_latest_report` recomputes it from `report`
 when the two need re-reconciling.
 
+`problem_since(source, collector, label) → first_seen` (0006) is when each
+currently-failing identity started failing, so the problems view can say how long
+a check has been red rather than only that it is. It is maintained on ingest for
+the same reason `latest_report` is: deriving it on read costs a scan of every
+`check_result` row per request. Fail/warn does `INSERT IGNORE` (the earliest
+sighting wins); pass/skip deletes the row, which is what ends a run. Ingest only
+updates it when the report being ingested is the latest one — a late-arriving old
+report must not resurrect a fault that has since cleared.
+
+⚠ **The backfill's cost is recorded wrong in the migration and cannot be fixed
+there.** `0006_problem_since.sql` says the scoped backfill takes 0.54s against
+the derive-on-read form's 66s. In production, at the pod's first boot on
+2026-08-22, it took **47.0s** — `_sqlx_migrations.execution_time` says
+47022489620 ns, and the rollout waited that long. The 0.54s was measured against
+a warm database that was not simultaneously serving ingest and the retention
+sweep; it is not the number a cold first boot sees. The comment is left as
+written because sqlx checksums applied migrations, so editing the file would make
+every subsequent boot fail with a version mismatch — this paragraph is the
+correction. The cost is one-time: sqlx runs a migration once, and later boots skip
+it.
+
 **Volume estimate**: ~200 checks/report × hourly × 3 collectors ≈ 15–20k check
 rows/day, ~7M/year — comfortable for MariaDB with the above indexes. Raw payloads
 (~100 KB each) are the real weight: ~5–7 MB/day, ~2.5 GB/year.
