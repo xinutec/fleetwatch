@@ -286,6 +286,29 @@ test against a throwaway MariaDB) and `fe-verify` (angular-eslint + unit tests +
 prod build) gate, then an `image` job that builds and pushes `xinutec/fleetwatch:latest`.
 Deploy stays manual `kubectl apply` on isis (isis is not Flux-managed).
 
+### Probes: two questions, not one
+
+`/healthz` is liveness and returns the literal `"ok"`. `/readyz` is readiness and
+runs `SELECT 1` through the shared pool. Both probes pointed at `/healthz` until
+2026-08-22, which made readiness a claim that could not fail: it proved the
+process was listening, so a pod that could not reach MariaDB — or had exhausted
+its pool, which is what #1053 was — reported Ready and kept taking traffic it
+answered with 500s.
+
+Liveness stays shallow deliberately. A liveness probe that depends on the
+database restarts the container in a loop for as long as the database is down;
+the restart cannot fix a dependency and throws away the part still working.
+Readiness withdraws the pod from the Service and puts it back by itself.
+
+The timings are the single-replica tax, and they are in
+`kubes/dhall/apps/fleetwatch.dhall` as a `T.Readiness`: `timeoutSeconds = 5` sits
+above the handler's own 3s budget (`routes::health::READY_BUDGET`) so a slow
+database arrives as a 503 we logged rather than a probe timeout that names no
+cause, and `failureThreshold = 3` over a 10s period means 30s of sustained
+failure before the only pod leaves the Service. With one replica, unreadying this
+app is an outage rather than a shift of traffic to a sibling, so it should take
+real evidence.
+
 ## 7. First producer: the Mac mini
 
 Built. Three parts, all in `xinutec-infra/mac-mini/` next to the tools they

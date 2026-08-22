@@ -3,6 +3,7 @@
 //! served single-origin with an index.html SPA fallback.
 
 pub mod auth;
+pub mod health;
 pub mod ingest;
 pub mod mutes;
 pub mod telemetry;
@@ -28,7 +29,7 @@ pub fn router(state: AppState) -> Router {
         // What the person did, folded into the same log as what the API saw.
         .route("/telemetry", post(telemetry::record))
         // One INFO line per API request. Scoped to /api so static-asset serving
-        // and the k8s /healthz probe don't spam the log.
+        // and the k8s liveness/readiness probes don't spam the log.
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
@@ -36,7 +37,10 @@ pub fn router(state: AppState) -> Router {
         );
 
     let mut app = Router::new()
-        .route("/healthz", get(|| async { "ok" }))
+        // Two questions, not one: shallow liveness, database-backed
+        // readiness. See routes::health.
+        .route("/healthz", get(health::healthz))
+        .route("/readyz", get(health::readyz))
         .route("/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
         .route("/logout", post(auth::logout))

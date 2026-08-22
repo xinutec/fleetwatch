@@ -175,3 +175,35 @@ async fn authed_but_unparseable_body_is_422() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+/// `/readyz` reports 503 when the database cannot be reached.
+///
+/// The lazy pool above points at 127.0.0.1:1, where nothing listens, so this is
+/// the real failure the probe exists to catch rather than a mocked one. It is
+/// also the test that would have failed on the old handler: `/healthz` returned
+/// the literal "ok" and could not distinguish a serving app from a wedged one,
+/// so k8s readiness passed while every read 500'd.
+#[tokio::test]
+async fn readyz_is_503_when_the_database_is_unreachable() {
+    let res = app()
+        .oneshot(Request::get("/readyz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/// Liveness stays shallow ON PURPOSE, and this test is what says so.
+///
+/// `/healthz` must keep answering 200 with the same dead pool that makes
+/// `/readyz` fail above. Liveness failing on a database outage would restart the
+/// app in a loop while the thing it depends on is down — the restart fixes
+/// nothing and costs the recovery. Readiness is where "cannot serve" belongs,
+/// because it stops traffic without killing the process.
+#[tokio::test]
+async fn healthz_stays_up_when_the_database_is_unreachable() {
+    let res = app()
+        .oneshot(Request::get("/healthz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+}
