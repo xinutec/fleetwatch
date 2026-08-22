@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtValue, formatAge, freshnessLabel, tileClass } from './status';
+import { failingFor, fmtValue, formatAge, freshnessLabel, tileClass } from './status';
 
 describe('status helpers', () => {
   it('tile shows worst verdict when fresh', () => {
@@ -34,5 +34,30 @@ describe('status helpers', () => {
     expect(formatAge(120)).toBe('2m ago');
     expect(formatAge(3600)).toBe('1h ago');
     expect(formatAge(3 * 86400)).toBe('3d ago');
+  });
+});
+
+
+describe('failingFor', () => {
+  // ⚠ The one-hour threshold IS the feature, not a detail. A fault minutes old
+  // says nothing a red row does not already say; labelling every row would bury
+  // the case this exists for — the row red for EIGHT DAYS that looked identical
+  // to the one that broke a minute ago (claude-disk, 2026-08-21).
+  it('says nothing for a fault minutes old', () => {
+    expect(failingFor(new Date(Date.now() - 10 * 60_000).toISOString())).toBeNull();
+  });
+
+  it('reports a standing fault in days', () => {
+    expect(failingFor(new Date(Date.now() - 8 * 86_400_000).toISOString())).toBe('8d');
+  });
+
+  it('says nothing when the server does not know', () => {
+    // A run older than the backfill. "failing just now" for an unknown start
+    // would be an invention, which is worse than saying nothing.
+    expect(failingFor(null)).toBeNull();
+  });
+
+  it('says nothing for an unparseable timestamp rather than NaN', () => {
+    expect(failingFor('not a date')).toBeNull();
   });
 });

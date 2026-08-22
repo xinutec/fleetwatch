@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { OverviewEntry, ProblemCheck } from '../../models';
-import { formatAge } from '../../status';
+import { failingFor, formatAge } from '../../status';
 import { MUTE_DURATIONS, MutesApi, expiresIn } from '../../mutes';
 import { ProblemsStore } from '../../problems-store';
 
@@ -50,6 +50,9 @@ export class Problems {
   readonly data = this.store.data;
   readonly checkedAgo = this.store.checkedAgo;
   readonly formatAge = formatAge;
+  readonly failingFor = failingFor;
+
+
   readonly expiresIn = expiresIn;
   readonly durations = MUTE_DURATIONS;
 

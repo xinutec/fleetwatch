@@ -46,6 +46,9 @@ fn export_golden_problems() {
                 // single-line value would not exercise the escaping.
                 detail: Some("memview gate — 15 checks\n  x frontend build\n  x eslint".into()),
                 collected_at: at(14, 0),
+                // A fault that has been standing for hours, so the poller's
+                // parse of an age is exercised rather than only its null case.
+                first_seen: Some(at(2, 0)),
             },
             // Every optional absent.
             ProblemCheck {
@@ -61,6 +64,10 @@ fn export_golden_problems() {
                 doc_ref: None,
                 detail: None,
                 collected_at: at(14, 5),
+                // Null on purpose: the "every optional absent" row. A run older
+                // than the backfill reads this way, and the poller must handle
+                // it rather than assuming an age is always there.
+                first_seen: None,
             },
         ],
         muted: vec![MutedCheck {

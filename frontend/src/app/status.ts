@@ -41,6 +41,28 @@ export function formatAge(seconds: number): string {
   return `${days}d ago`;
 }
 
+/**
+ * How long a check has been failing, or null when it should not be shown.
+ *
+ * ⚠ Hidden under an hour ON PURPOSE. A fault minutes old says nothing a red row
+ * does not already say, and labelling every row "failing 3m" would bury the case
+ * this exists for: the row red for DAYS that looks identical to the one that
+ * broke just now. claude-disk's trough check was red for eight days, naming in
+ * its own expected text the mechanism that then broke a running build, and
+ * nothing distinguished it from noise.
+ *
+ * Null also when the server does not know — a run older than the backfill.
+ * Rendering "failing just now" for an unknown start would be an invention.
+ */
+export function failingFor(firstSeen: string | null): string | null {
+  if (!firstSeen) return null;
+  const started = Date.parse(firstSeen);
+  if (Number.isNaN(started)) return null;
+  const seconds = (Date.now() - started) / 1000;
+  if (seconds < 3600) return null;
+  return formatAge(seconds).replace(/ ago$/, '');
+}
+
 /** Format a numeric reading with its unit: symbol units attach (`43%`), word
  *  units get a space (`0 violations`, `68 days`), no unit is just the number. */
 export function fmtValue(value: number, unit: string | null | undefined): string {

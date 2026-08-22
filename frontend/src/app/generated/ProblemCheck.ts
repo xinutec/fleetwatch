@@ -8,4 +8,8 @@ export type ProblemCheck = { source: string, collector: string, report_id: strin
 /**
  * The producer's captured log for a failing run, when it sent one.
  */
-detail: string | null, collected_at: string, };
+detail: string | null, collected_at: string, 
+/**
+ * When this check started failing, if known.
+ */
+first_seen: string | null, };

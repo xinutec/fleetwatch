@@ -188,6 +188,21 @@ pub struct ProblemCheck {
     pub detail: Option<String>,
     #[ts(type = "string")]
     pub collected_at: DateTime<Utc>,
+    // When this identity STARTED failing — the producer's clock at the first
+    // report of the current run, maintained on ingest (migration 0006).
+    //
+    // Without it a check red for a week reads exactly like one red for a minute,
+    // and the two want different responses. On 2026-08-21 claude-disk's trough
+    // check had been failing eight days, naming in its own expected text the
+    // mechanism that then broke a running test — and the diagnosis was rebuilt
+    // from scratch because nothing here said "this is not new".
+    //
+    // ⚠ Null when unknown — a run older than the backfill, or one no report has
+    // opened. NOT defaulted to now: "we do not know how long" and "it started
+    // this second" are different claims and only one of them is true.
+    /// When this check started failing, if known.
+    #[ts(type = "string | null")]
+    pub first_seen: Option<DateTime<Utc>>,
 }
 
 /// A failing/warning check that a live mute is currently suppressing. Shown in

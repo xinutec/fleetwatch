@@ -191,6 +191,61 @@ pub async fn ingest(
     .await
     .map_err(AppError::from)?;
 
+    // Open or close each identity's failing run (migration 0006), so `problems()`
+    // can say how long, not just what.
+    //
+    // ⚠ ONLY WHEN THIS REPORT IS NOW THE LATEST for its producer. A spool
+    // draining after a network flap replays older reports, and an old report
+    // showing a check PASSING would otherwise close a run that is still open —
+    // resetting the age of a fault that never went away. The pointer written
+    // just above is what answers "is this the newest?", so the guard costs one
+    // comparison rather than another query.
+    let is_latest: Option<(String,)> =
+        sqlx::query_as("SELECT report_id FROM latest_report WHERE source = ? AND collector = ?")
+            .bind(source)
+            .bind(&upload.collector)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
+
+    if is_latest.map(|(id,)| id) == Some(upload.id.clone()) {
+        for c in &upload.checks {
+            match c.verdict {
+                // INSERT IGNORE keeps the EARLIEST: a run that is already open
+                // must not have its start pushed forward by every later report
+                // that still shows it failing.
+                Verdict::Fail | Verdict::Warn => {
+                    sqlx::query(
+                        "INSERT IGNORE INTO problem_since \
+                         (source, collector, label, first_seen) VALUES (?, ?, ?, ?)",
+                    )
+                    .bind(source)
+                    .bind(&upload.collector)
+                    .bind(&c.label)
+                    .bind(collected)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+                // Passing ends the run. The next failure starts a new one, which
+                // is the point: an age should describe THIS fault, not the last
+                // time this check was ever unhappy.
+                Verdict::Pass | Verdict::Skip => {
+                    sqlx::query(
+                        "DELETE FROM problem_since \
+                         WHERE source = ? AND collector = ? AND label = ?",
+                    )
+                    .bind(source)
+                    .bind(&upload.collector)
+                    .bind(&c.label)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(AppError::from)?;
+                }
+            }
+        }
+    }
+
     tx.commit().await.map_err(AppError::from)?;
 
     Ok(IngestAck {
@@ -380,6 +435,11 @@ struct ProblemRow {
     doc_ref: Option<String>,
     detail: Option<String>,
     collected_at: NaiveDateTime,
+    /// `None` only for a run that began before migration 0006 backfilled, or
+    /// for a report that arrived out of order and so did not open one. Optional
+    /// rather than defaulted to now: "we do not know" and "it started this
+    /// second" are different claims, and the second one is a lie.
+    first_seen: Option<NaiveDateTime>,
 }
 
 /// The problems view: every failing/warning check from each collector's latest
@@ -393,9 +453,12 @@ struct ProblemRow {
 pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
     let rows: Vec<ProblemRow> = sqlx::query_as(
         "SELECT c.source, c.collector, c.report_id, c.section, c.label, c.subject, \
-                c.verdict, c.observed, c.expected, c.doc_ref, c.detail, c.collected_at \
+                c.verdict, c.observed, c.expected, c.doc_ref, c.detail, c.collected_at, \
+                s.first_seen \
          FROM latest_report l \
          JOIN check_result c ON c.report_id = l.report_id \
+         LEFT JOIN problem_since s ON s.source = c.source \
+                               AND s.collector = c.collector AND s.label = c.label \
          WHERE c.verdict IN ('fail', 'warn') \
          ORDER BY FIELD(c.verdict, 'fail', 'warn'), c.source, c.collector, c.section, c.seq",
     )
@@ -451,6 +514,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
                 doc_ref: r.doc_ref.clone(),
                 detail: r.detail.clone(),
                 collected_at: r.collected_at.and_utc(),
+                first_seen: r.first_seen.map(|t| t.and_utc()),
             }),
         }
     }

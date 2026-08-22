@@ -43,12 +43,14 @@ const PROBLEMS = {
       source: 'mac-mini', collector: 'fleet-health', report_id: 'r2', section: 'disk',
       label: 'root filesystem usage above threshold', subject: '/dev/disk1s1',
       verdict: 'warn', observed: '86%', expected: '< 80%', ref: null, collected_at: ago(660),
+      first_seen: new Date(Date.now() - 9 * 86400_000).toISOString(),
     },
     {
       source: 'mac-mini', collector: 'dependabot-and-container-image-freshness', report_id: 'r3',
       section: 'images', label: 'container image is behind the upstream tag',
       subject: 'xinutec/fleetwatch', verdict: 'fail', observed: 'sha 9dc8fec', expected: 'sha f335fb2',
       ref: null, collected_at: ago(90000),
+      first_seen: null,
     },
     // Hostile content (see the REPORT note): a long unbreakable path in observed.
     // Synthetic path — no real home dir / username.

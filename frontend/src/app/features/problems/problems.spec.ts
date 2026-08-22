@@ -22,6 +22,7 @@ const CHECK: ProblemCheck = {
   ref: null,
   detail: null,
   collected_at: '2026-07-03T14:00:00Z',
+  first_seen: null,
 };
 
 function payload(overrides: Partial<ProblemsData> = {}): ProblemsData {
@@ -148,6 +149,7 @@ describe('Problems (mute flow)', () => {
         collector: 'fleet-health',
         report_id: '01JR',
         collected_at: '2026-07-03T14:00:00Z',
+  first_seen: null,
         age_s: 120,
         interval_s: 3600,
         freshness: 'fresh',

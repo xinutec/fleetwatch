@@ -12,7 +12,8 @@
       "expected": "< 30 min",
       "ref": "receivers.md:12",
       "detail": "memview gate — 15 checks\n  x frontend build\n  x eslint",
-      "collected_at": "2026-07-03T14:00:00Z"
+      "collected_at": "2026-07-03T14:00:00Z",
+      "first_seen": "2026-07-03T02:00:00Z"
     },
     {
       "source": "mac-mini",
@@ -26,7 +27,8 @@
       "expected": null,
       "ref": null,
       "detail": null,
-      "collected_at": "2026-07-03T14:05:00Z"
+      "collected_at": "2026-07-03T14:05:00Z",
+      "first_seen": null
     }
   ],
   "muted": [
