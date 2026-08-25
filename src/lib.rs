@@ -15,5 +15,6 @@ pub mod nextcloud;
 pub mod pending_login;
 pub mod report;
 pub mod routes;
+pub mod selfcheck;
 pub mod session;
 pub mod state;

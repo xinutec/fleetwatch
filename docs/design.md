@@ -221,6 +221,38 @@ reticketing. Deleting a mute (unmute) restores the problem on the next read.
 Because it is a pure overlay, stored history and the report rollups are never
 touched: the truth stays queryable and the mute is auditable.
 
+### Reporting on itself (the weaker half, on purpose)
+
+fleetwatch is a producer of its own internals: source `fleetwatch`, collector
+`internals`, every 15 minutes, stored through the same ingest path as everything
+else so it renders as an ordinary tile.
+
+⚠ **This does not replace the external probe and cannot.** `fleet_health.py` on
+the Mac fetches `/api/problems` from outside the cluster and validates the
+payload, so a dead or misrouted fleetwatch is caught by something that does not
+depend on fleetwatch being alive. A monitor reporting on itself is silent in
+exactly the case that matters. What this adds is the internal state no external
+probe can reach:
+
+- **pool utilisation** — how close `MAX_CONNECTIONS` is to exhausted. Warns at
+  75%, fails at exhaustion. ⚠ It SAMPLES at report time, so it shows the trend
+  and will miss a spike between samples; catching the spike needs instrumentation
+  on acquire, deliberately out of scope.
+- **ingest lag** — `received_at - collected_at` per producer. Distinct from
+  staleness (`now - collected_at`): a producer that collects on time but cannot
+  upload has a growing lag, and staleness conflates that with one that stopped
+  collecting. **Judged against the producer's own `interval_s`**, not a constant
+  chosen here — a report slower to arrive than its collection period means the
+  spool is falling behind whatever that period is. A producer with no declared
+  interval is reported and not judged.
+- **retention outcomes** — the daily sweep's result, which previously went to
+  stdout and nowhere durable. The stamp moves only on a COMPLETED sweep, so a
+  sweeper erroring every night does not look healthy.
+- **boot cost** — migration and reconcile durations, reported and not judged:
+  the complaint was that 47s of migration was invisible, not that it was wrong.
+
+It omits its own ingest-lag row, which would always read zero.
+
 ### Retirement (permanent, and loud if it turns out wrong)
 
 A mute is for something coming back. A **retirement** is for something that is

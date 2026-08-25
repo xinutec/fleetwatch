@@ -4,9 +4,14 @@ use anyhow::{Context, Result};
 use sqlx::MySqlPool;
 use sqlx::mysql::MySqlPoolOptions;
 
+/// The pool ceiling. Named rather than inline because `selfcheck` reports how
+/// close the pool is to it, and a denominator that lives in one place cannot
+/// disagree with the number it is measured against.
+pub const MAX_CONNECTIONS: u32 = 8;
+
 pub async fn connect(database_url: &str) -> Result<MySqlPool> {
     let pool = MySqlPoolOptions::new()
-        .max_connections(8)
+        .max_connections(MAX_CONNECTIONS)
         .connect(database_url)
         .await
         .context("connecting to MariaDB")?;
