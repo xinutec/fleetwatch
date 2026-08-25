@@ -42,6 +42,7 @@ class GoldenWireTest {
         // server and this app must keep ignoring them.
         assertEquals(2, p.checks.size)
         assertEquals(1, p.stale.size)
+        assertEquals(1, p.returned.size)
 
         val fail = p.checks[0]
         assertEquals("mac-mini", fail.source)
@@ -60,17 +61,38 @@ class GoldenWireTest {
         val stale = p.stale.single()
         assertEquals("isis", stale.source)
         assertEquals("backup-verify", stale.collector)
+
+        // A retired producer reporting again. It shares `Stale`'s shape but not
+        // its meaning: this one is FRESH, and that is the whole point of it.
+        val back = p.returned.single()
+        assertEquals("amun", back.source)
+        assertEquals("picade-drift", back.collector)
+    }
+
+    @Test
+    fun `a payload with no returned field still parses`() {
+        // The phone updates on its own schedule, so it will meet a server older
+        // than migration 0007. `optJSONArray` degrades to empty rather than
+        // throwing — the same tolerance every other field here relies on.
+        val p = Problems.parse("""{"checks":[],"stale":[]}""")
+        assertTrue(p.returned.isEmpty())
+        assertTrue(p.isEmpty)
     }
 
     @Test
     fun `the poller's decisions come out right on real wire data`() {
         val p = Problems.parse(golden())
 
-        // The warn is dropped from the notifiable set; the fail and the silent
-        // collector survive.
-        assertEquals(3, p.count)
-        assertEquals(2, p.notifiable().count)
-        assertEquals("isis/backup-verify silent, pixel5 fail", p.notifiable().summary())
+        // The warn is dropped from the notifiable set; the fail, the silent
+        // collector and the returned one survive. A return is never a warning,
+        // so `notifiable()` must not filter it — a retirement has no expiry, and
+        // this notification is the only thing that closes that blind spot.
+        assertEquals(4, p.count)
+        assertEquals(3, p.notifiable().count)
+        assertEquals(
+            "amun/picade-drift back, isis/backup-verify silent, pixel5 fail",
+            p.notifiable().summary(),
+        )
 
         // The fingerprint keys on fields that must therefore all be parsed for
         // real: re-parsing the same wire data reproduces it exactly, and the

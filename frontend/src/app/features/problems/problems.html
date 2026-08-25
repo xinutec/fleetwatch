@@ -31,22 +31,109 @@
   }
 
   @if (data.value(); as d) {
+    <!-- FIRST on the page, above the silent collectors, because it is the one
+         section that means something STARTED rather than stopped — a producer
+         somebody declared finished is reporting again. Rare, and not what the
+         eye is scanning for here, so it goes where the eye lands first. -->
+    @if (d.returned.length > 0) {
+      <h3>Retired collectors reporting again</h3>
+      <div class="list">
+        @for (s of d.returned; track s.source + s.collector) {
+          <mat-card appearance="outlined" class="row">
+            <mat-card-content>
+              <div class="row-body">
+                <a class="row-hit" [routerLink]="['/reports', s.report_id]">
+                  <span class="dot fail"></span>
+                  <div class="row-main">
+                    <span class="title">{{ s.source }} · {{ s.collector }}</span>
+                    <span class="detail">retired, but reported {{ formatAge(s.age_s) }}</span>
+                  </div>
+                </a>
+                <span class="pill fail">returned</span>
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="mute-btn"
+                  aria-label="Monitor this producer again"
+                  (click)="unretire(s)"
+                >
+                  <mat-icon>restart_alt</mat-icon>
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
+
     @if (d.stale.length > 0) {
       <h3>Silent / overdue collectors</h3>
       <div class="list">
         @for (s of d.stale; track s.source + s.collector) {
-          <a class="row-link" [routerLink]="['/reports', s.report_id]">
-            <mat-card appearance="outlined" class="row" [class]="s.freshness">
-              <mat-card-content class="row-body">
-                <span class="dot" [class]="s.freshness"></span>
-                <div class="row-main">
-                  <span class="title">{{ s.source }} · {{ s.collector }}</span>
-                  <span class="detail">last data {{ formatAge(s.age_s) }}</span>
-                </div>
+          <mat-card appearance="outlined" class="row" [class]="s.freshness">
+            <mat-card-content>
+              <div class="row-body">
+                <a class="row-hit" [routerLink]="['/reports', s.report_id]">
+                  <span class="dot" [class]="s.freshness"></span>
+                  <div class="row-main">
+                    <span class="title">{{ s.source }} · {{ s.collector }}</span>
+                    <span class="detail">last data {{ formatAge(s.age_s) }}</span>
+                  </div>
+                </a>
                 <span class="pill" [class]="s.freshness">{{ s.freshness }}</span>
-              </mat-card-content>
-            </mat-card>
-          </a>
+              <!-- Retiring is for a producer that is NOT coming back — a
+                   collector that moved host. There is no duration, which is the
+                   one way it differs from a mute. -->
+              <button
+                mat-icon-button
+                type="button"
+                class="mute-btn"
+                [class.active]="retireKey() === s.source + '/' + s.collector"
+                [attr.aria-label]="
+                  retireKey() === s.source + '/' + s.collector
+                    ? 'Close retire form'
+                    : 'Retire this producer'
+                "
+                (click)="toggleRetire(s)"
+              >
+                  <mat-icon>{{
+                    retireKey() === s.source + '/' + s.collector ? 'close' : 'do_not_disturb_on'
+                  }}</mat-icon>
+                </button>
+              </div>
+
+              @if (retireKey() === s.source + '/' + s.collector) {
+                <div class="mute-form">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="reason">
+                    <mat-label>Why is this producer finished?</mat-label>
+                    <input
+                      matInput
+                      type="text"
+                      required
+                      [ngModel]="retireReason()"
+                      (ngModelChange)="retireReason.set($event)"
+                    />
+                  </mat-form-field>
+                  <!-- On its own line, not beside the button: at phone width a
+                       sentence sharing a row with a button wraps into it. -->
+                  <span class="detail">
+                    Permanent — its history is kept, and it speaks up if it reports again.
+                  </span>
+                  <div class="mute-row">
+                    <span class="spacer"></span>
+                    <button
+                      mat-flat-button
+                      type="button"
+                      [disabled]="!retireReason().trim() || saving()"
+                      (click)="submitRetire(s)"
+                    >
+                      Retire
+                    </button>
+                  </div>
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
         }
       </div>
     }

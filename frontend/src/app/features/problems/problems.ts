@@ -14,6 +14,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { OverviewEntry, ProblemCheck } from '../../models';
 import { failingFor, formatAge } from '../../status';
 import { MUTE_DURATIONS, MutesApi, expiresIn } from '../../mutes';
+import { RetirementsApi } from '../../retirements';
 import { ProblemsStore } from '../../problems-store';
 
 /** Identity of the check a mute targets — its source/collector/label.
@@ -42,6 +43,7 @@ function keyOf(c: ProblemCheck): string {
 })
 export class Problems {
   private readonly mutes = inject(MutesApi);
+  private readonly retirements = inject(RetirementsApi);
   private readonly snack = inject(MatSnackBar);
   private readonly store = inject(ProblemsStore);
 
@@ -76,7 +78,11 @@ export class Problems {
       // Rendering a green tick and "all clear" directly above two mutes running
       // out reads as a contradiction — and worse, invites the glance that stops
       // at the tick, which is the glance this section exists to interrupt.
-      d.lapsing.length === 0
+      d.lapsing.length === 0 &&
+      // A retired producer reporting again is not a failing check, but it is
+      // the loudest thing this page can say. "All clear" above it would be a
+      // flat contradiction.
+      d.returned.length === 0
     );
   });
 
@@ -130,6 +136,49 @@ export class Problems {
           this.snack.open('Could not save the mute', 'Dismiss', { duration: 5000 });
         },
       });
+  }
+
+  // A stale row's own retire form. Keyed separately from `openKey` so opening
+  // one never closes a mute form on another row.
+  readonly retireKey = signal<string | null>(null);
+  readonly retireReason = signal('');
+
+  toggleRetire(e: OverviewEntry): void {
+    const key = `${e.source}/${e.collector}`;
+    if (this.retireKey() === key) {
+      this.retireKey.set(null);
+      return;
+    }
+    this.retireReason.set('');
+    this.retireKey.set(key);
+  }
+
+  submitRetire(e: OverviewEntry): void {
+    const reason = this.retireReason().trim();
+    if (!reason || this.saving()) return;
+    this.saving.set(true);
+    this.retirements.create({ source: e.source, collector: e.collector, reason }).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.retireKey.set(null);
+        this.data.reload();
+      },
+      error: () => {
+        this.saving.set(false);
+        this.snack.open('Could not retire the producer', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  // Un-retiring is offered on the `returned` rows, where it is the likely
+  // answer: the producer is back on purpose, so take it off the retired list
+  // and let it be monitored again.
+  unretire(e: OverviewEntry): void {
+    this.retirements.remove(e.source, e.collector).subscribe({
+      next: () => this.data.reload(),
+      error: () =>
+        this.snack.open('Could not un-retire the producer', 'Dismiss', { duration: 5000 }),
+    });
   }
 
   unmute(id: string): void {

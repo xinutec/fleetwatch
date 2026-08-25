@@ -6,6 +6,7 @@ pub mod auth;
 pub mod health;
 pub mod ingest;
 pub mod mutes;
+pub mod retirements;
 pub mod telemetry;
 pub mod views;
 
@@ -26,6 +27,16 @@ pub fn router(state: AppState) -> Router {
         .route("/history", get(views::history))
         .route("/mutes", get(mutes::list).post(mutes::create))
         .route("/mutes/{id}", delete(mutes::delete))
+        // Keyed on (source, collector) rather than an id: a retirement is about
+        // a producer's identity, and there is exactly one per producer.
+        .route(
+            "/retirements",
+            get(retirements::list).post(retirements::create),
+        )
+        .route(
+            "/retirements/{source}/{collector}",
+            delete(retirements::delete),
+        )
         // What the person did, folded into the same log as what the API saw.
         .route("/telemetry", post(telemetry::record))
         // One INFO line per API request. Scoped to /api so static-asset serving

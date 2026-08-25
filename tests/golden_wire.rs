@@ -115,6 +115,27 @@ fn export_golden_problems() {
             created_at: at(1, 0),
             expires_at: at(20, 0),
         }],
+        // A retired producer that started reporting again. Pinned here because
+        // it is the one entry on this page that means the opposite of the rest:
+        // everything else is something that stopped, this is something that
+        // started. `freshness` is Fresh on purpose — a returned producer is by
+        // definition current, which is why `stale` could never carry it.
+        returned: vec![OverviewEntry {
+            source: "amun".into(),
+            collector: "picade-drift".into(),
+            report_id: "01JZFIXTURE0000000000000G".into(),
+            collected_at: at(14, 12),
+            age_s: 60,
+            interval_s: Some(3_600),
+            freshness: Freshness::Fresh,
+            worst: Verdict::Pass,
+            pass: 5,
+            warn: 0,
+            fail: 0,
+            skip: 0,
+            muted: 0,
+            total: 5,
+        }],
     };
 
     let json = serde_json::to_string_pretty(&problems).unwrap() + "\n";

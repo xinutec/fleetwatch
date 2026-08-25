@@ -48,11 +48,6 @@
   gap: 0.5rem;
 }
 
-.row-link {
-  text-decoration: none;
-  color: inherit;
-}
-
 // The navigable part of a problem card — dot + text. Scoped to this so the mute
 // button can be a real sibling button in the same row (a <button> can't live
 // inside the <a> that a whole-card link would make).

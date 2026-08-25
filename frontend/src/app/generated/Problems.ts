@@ -9,4 +9,4 @@ import type { ProblemCheck } from "./ProblemCheck";
  * a live mute is suppressing (kept visible, not notified), plus collectors that
  * have gone silent/overdue (which no check can express).
  */
-export type Problems = { checks: Array<ProblemCheck>, muted: Array<MutedCheck>, stale: Array<OverviewEntry>, lapsing: Array<Mute>, };
+export type Problems = { checks: Array<ProblemCheck>, muted: Array<MutedCheck>, stale: Array<OverviewEntry>, lapsing: Array<Mute>, returned: Array<OverviewEntry>, };

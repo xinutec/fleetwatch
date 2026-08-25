@@ -13,8 +13,8 @@ use ulid::Ulid;
 use super::staleness::freshness;
 use super::types::{
     CheckKey, CheckOut, CheckUpload, Freshness, History, HistoryPoint, IngestAck, Mute, MutedCheck,
-    NewMute, OverviewEntry, ProblemCheck, Problems, ReportDetail, ReportSummary, ReportUpload,
-    SCHEMA, Verdict,
+    NewMute, NewRetirement, OverviewEntry, ProblemCheck, Problems, ReportDetail, ReportSummary,
+    ReportUpload, Retirement, SCHEMA, Verdict,
 };
 
 /// The window that ranks each (source, collector)'s reports newest-first —
@@ -519,11 +519,36 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
         }
     }
 
-    let stale = overview(pool)
-        .await?
-        .into_iter()
-        .filter(|e| e.freshness != Freshness::Fresh)
+    // Retirement is a READ-TIME OVERLAY, exactly like a mute: nothing stored is
+    // rewritten, and one pass over `overview()` splits into the two things a
+    // retirement means.
+    //
+    // ⚠ The two arms are disjoint by construction and neither is a filter of the
+    // other. A retired producer that stopped is silent-and-expected, so it drops
+    // out of `stale` and says nothing. A retired producer REPORTING AGAIN is
+    // fresh, so `stale` could never have carried it however it were filtered —
+    // it needs its own list or the case is unsayable.
+    let retirements = list_retirements(pool).await?;
+    let retired: std::collections::HashMap<(&str, &str), &Retirement> = retirements
+        .iter()
+        .map(|r| ((r.source.as_str(), r.collector.as_str()), r))
         .collect();
+
+    let mut stale = Vec::new();
+    let mut returned = Vec::new();
+    for e in overview(pool).await? {
+        match retired.get(&(e.source.as_str(), e.collector.as_str())) {
+            // Reporting again after being declared finished. Loud on purpose —
+            // see `Problems::returned`.
+            Some(r) if e.collected_at > r.retired_at => returned.push(e),
+            Some(_) => {}
+            None => {
+                if e.freshness != Freshness::Fresh {
+                    stale.push(e);
+                }
+            }
+        }
+    }
 
     // Mutes in the last quarter of their life, capped at LAPSE_WARNING. The
     // proportion is what makes this work across a TTL range of 1 hour to 365
@@ -542,6 +567,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
         muted,
         stale,
         lapsing,
+        returned,
     })
 }
 
@@ -565,6 +591,89 @@ pub fn is_lapsing(m: &Mute, now: DateTime<Utc>) -> bool {
 /// Create a mute. `created_by` comes from the session; `expires_at` is derived
 /// from `ttl_hours` (clamped) — a mute cannot be permanent. Identity fields and
 /// the reason must be non-empty: an unattributable or unbounded mute is exactly
+/// Every retirement, newest first. Small by nature — one row per producer that
+/// has been declared finished — so it is fetched whole and joined in memory.
+pub async fn list_retirements(pool: &MySqlPool) -> Result<Vec<Retirement>> {
+    let rows: Vec<(String, String, String, String, chrono::NaiveDateTime)> = sqlx::query_as(
+        "SELECT source, collector, reason, created_by, retired_at \
+         FROM retirement ORDER BY retired_at DESC",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(source, collector, reason, created_by, retired_at)| Retirement {
+                source,
+                collector,
+                reason,
+                created_by,
+                retired_at: retired_at.and_utc(),
+            },
+        )
+        .collect())
+}
+
+/// Retire a producer. Idempotent on `(source, collector)`: retiring one twice
+/// restates it rather than failing, but does NOT reset `retired_at` — that
+/// timestamp is what `Problems::returned` compares against, so moving it
+/// forward would silently forgive a return that had already happened.
+///
+/// `reason` is mandatory for the same reason a mute's is: a producer removed
+/// from the fleet's attention without an attributable reason is the blind spot
+/// this whole design is trying not to create.
+pub async fn create_retirement(
+    pool: &MySqlPool,
+    new: &NewRetirement,
+    created_by: &str,
+) -> Result<Retirement, AppError> {
+    let source = new.source.trim();
+    let collector = new.collector.trim();
+    let reason = new.reason.trim();
+    if source.is_empty() || collector.is_empty() {
+        return Err(AppError::BadRequest(
+            "source and collector are required".into(),
+        ));
+    }
+    if reason.is_empty() {
+        return Err(AppError::BadRequest("a reason is required".into()));
+    }
+
+    let retired_at = Utc::now();
+    sqlx::query(
+        "INSERT INTO retirement (source, collector, reason, created_by, retired_at) \
+         VALUES (?, ?, ?, ?, ?) \
+         ON DUPLICATE KEY UPDATE reason = VALUES(reason), created_by = VALUES(created_by)",
+    )
+    .bind(source)
+    .bind(collector)
+    .bind(reason)
+    .bind(created_by)
+    .bind(retired_at.naive_utc())
+    .execute(pool)
+    .await?;
+
+    // Read back rather than returning what was sent: on a repeat the stored
+    // `retired_at` is the ORIGINAL one, and that is the value callers must see.
+    let existing = list_retirements(pool)
+        .await?
+        .into_iter()
+        .find(|r| r.source == source && r.collector == collector);
+    existing.ok_or_else(|| AppError::BadRequest("retirement vanished after write".into()))
+}
+
+/// Un-retire: the producer counts as stale again from the next read. Returns
+/// false if it was not retired.
+pub async fn delete_retirement(pool: &MySqlPool, source: &str, collector: &str) -> Result<bool> {
+    let n = sqlx::query("DELETE FROM retirement WHERE source = ? AND collector = ?")
+        .bind(source)
+        .bind(collector)
+        .execute(pool)
+        .await?
+        .rows_affected();
+    Ok(n > 0)
+}
+
 /// the silent blind spot this feature exists to avoid.
 pub async fn create_mute(
     pool: &MySqlPool,

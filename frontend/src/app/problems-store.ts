@@ -12,7 +12,7 @@ import { formatAge } from './status';
 // `lapsing` is deliberately NOT in `count` below: a mute about to expire is a
 // decision to make, not a fault. Putting it in the badge would light the app up
 // for something that is not wrong yet.
-const EMPTY: Problems = { checks: [], muted: [], stale: [], lapsing: [] };
+const EMPTY: Problems = { checks: [], muted: [], stale: [], lapsing: [], returned: [] };
 
 /** How often the open tab re-asks the server (only while visible). */
 export const REFRESH_MS = 90_000;
@@ -22,7 +22,12 @@ export class ProblemsStore {
   readonly data = httpResource<Problems>(() => '/api/problems', { defaultValue: EMPTY });
 
   /** Standing badge count: failing/warning checks + overdue/silent collectors. */
-  readonly count = computed(() => this.data.value().checks.length + this.data.value().stale.length);
+  readonly count = computed(
+    () =>
+      this.data.value().checks.length +
+      this.data.value().stale.length +
+      this.data.value().returned.length,
+  );
 
   // "checked 3m ago" — the honesty marker for a page that sits open. Stamped
   // when a load lands; aged by a coarse ticker.

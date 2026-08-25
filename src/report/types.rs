@@ -252,6 +252,17 @@ pub struct Problems {
     // That silence is correct for the expiry itself — a mute must expire, and no
     // reticketing is the point — but the expiry was knowable a week ahead.
     pub lapsing: Vec<Mute>,
+    // Retired producers that are REPORTING AGAIN — a report collected after the
+    // retirement was recorded. Synthesised here for the same reason `stale` and
+    // `lapsing` are: no producer can emit it.
+    //
+    // ⚠ This is the price of a retirement having no expiry. A mute is safe to
+    // let rot because it heals itself; a retirement never does, so the blind
+    // spot it could become is closed HERE instead — by being loud when the
+    // premise ("this producer is finished") turns out to be false. Un-retiring
+    // silently would be the convenient answer and would hide exactly the case
+    // worth knowing: a host coming back that nobody meant to bring back.
+    pub returned: Vec<OverviewEntry>,
 }
 
 /// A live suppression of one check identity `(source, collector, label)`. Always
@@ -282,6 +293,34 @@ pub struct NewMute {
     pub label: String,
     pub reason: String,
     pub ttl_hours: u32,
+}
+
+/// A producer declared finished: `(source, collector)` stops counting as stale
+/// without any of its history being touched. See migrations/0007_retirement.sql
+/// for why this is not a mute — chiefly that it has no expiry, because the
+/// producer is not coming back.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Retirement {
+    pub source: String,
+    pub collector: String,
+    pub reason: String,
+    pub created_by: String,
+    #[ts(type = "string")]
+    pub retired_at: DateTime<Utc>,
+}
+
+/// Request body to retire a producer. `created_by` and `retired_at` are stamped
+/// from the session and the clock, never client-supplied — the same rule as
+/// `NewMute`, and for the same reason: this is an accountable human decision.
+///
+/// There is no `ttl_hours` here and that absence is the design.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct NewRetirement {
+    pub source: String,
+    pub collector: String,
+    pub reason: String,
 }
 
 /// A check as rendered in a report's detail view.

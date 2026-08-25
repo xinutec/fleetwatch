@@ -6,19 +6,27 @@ import org.json.JSONObject
 /**
  * The parsed shape of `GET /api/problems` — "what's wrong right now".
  *
- * Two kinds of trouble, deliberately distinct:
+ * Three kinds of trouble, deliberately distinct:
  *  - [checks]: a check whose latest verdict is fail/warn (something reported bad news).
  *  - [stale]: a producer that has gone quiet (nobody reported at all).
+ *  - [returned]: a producer declared FINISHED that has started reporting again.
  *
  * The second is the one that matters most and is easiest to miss: a monitor whose worst
- * failure mode is a dead producer looking green. Both are surfaced.
+ * failure mode is a dead producer looking green.
+ *
+ * The third means the opposite of the other two — something started rather than stopped —
+ * and it is here because a retirement has no expiry. A mute is safe to forget because it
+ * heals itself; a retirement never does, so the blind spot it could become is closed by
+ * being loud when its premise ("this producer is finished") turns out to be false. A host
+ * back on the fleet that nobody meant to restart is worth waking a phone for.
  */
 data class Problems(
     val checks: List<Problem>,
     val stale: List<Stale>,
+    val returned: List<Stale> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = checks.isEmpty() && stale.isEmpty()
-    val count: Int get() = checks.size + stale.size
+    val isEmpty: Boolean get() = checks.isEmpty() && stale.isEmpty() && returned.isEmpty()
+    val count: Int get() = checks.size + stale.size + returned.size
 
     /**
      * The subset worth waking a phone for: failures and silent producers. Warnings are
@@ -54,14 +62,18 @@ data class Problems(
                 JSONArray(listOf(it.source, it.collector, it.section, it.label, it.verdict))
                     .toString()
             } +
-                stale.map { JSONArray(listOf(it.source, it.collector, "stale")).toString() }
+                stale.map { JSONArray(listOf(it.source, it.collector, "stale")).toString() } +
+                returned.map {
+                    JSONArray(listOf(it.source, it.collector, "returned")).toString()
+                }
         ).sorted()
             .joinToString("|")
 
     /** One line for the notification body: the worst offenders, named. */
     fun summary(): String {
         val parts =
-            stale.map { "${it.source}/${it.collector} silent" } +
+            returned.map { "${it.source}/${it.collector} back" } +
+                stale.map { "${it.source}/${it.collector} silent" } +
                 checks.map { "${it.label} ${it.verdict}" }
         return when {
             parts.isEmpty() -> "All clear"
@@ -97,6 +109,16 @@ data class Problems(
                     },
                 stale =
                     root.optJSONArray("stale").objects().map { o ->
+                        Stale(
+                            source = o.optString("source"),
+                            collector = o.optString("collector"),
+                        )
+                    },
+                // Absent in a payload from a server older than migration 0007,
+                // which `optJSONArray` degrades to empty rather than throwing —
+                // the same tolerance every other field here relies on.
+                returned =
+                    root.optJSONArray("returned").objects().map { o ->
                         Stale(
                             source = o.optString("source"),
                             collector = o.optString("collector"),

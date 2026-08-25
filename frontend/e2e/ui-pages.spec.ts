@@ -82,6 +82,16 @@ const PROBLEMS = {
       created_at: ago(86400), expires_at: ago(-3600),
     },
   ],
+  // A retired producer reporting again, so the harness renders that section at
+  // phone width too. The long collector name is deliberate: this row carries a
+  // pill AND a button beside the title, so it is the narrowest thing on the page.
+  returned: [
+    {
+      source: 'amun', collector: 'dependabot-and-container-image-freshness',
+      report_id: 'r9', collected_at: ago(60), age_s: 60, interval_s: 3600,
+      freshness: 'fresh', worst: 'pass', pass: 5, warn: 0, fail: 0, skip: 0, total: 5,
+    },
+  ],
 };
 
 // A realistic trend: enough points for a line, mixed verdicts for the strip,
@@ -175,6 +185,15 @@ test('problems — open mute form: lays out cleanly @ phone width', async ({ pag
   await page.goto('/problems');
   await page.getByRole('button', { name: 'Mute this check' }).first().click();
   await page.getByText('Why is this expected?').waitFor();
+  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectNoHorizontalOverflow(page, testInfo);
+});
+
+test('problems — open retire form: lays out cleanly @ phone width', async ({ page }, testInfo) => {
+  await mockApi(page);
+  await page.goto('/problems');
+  await page.getByRole('button', { name: 'Retire this producer' }).first().click();
+  await page.getByText('Why is this producer finished?').waitFor();
   await expectNoTextOverlaps(page, testInfo, 'main');
   await expectNoHorizontalOverflow(page, testInfo);
 });

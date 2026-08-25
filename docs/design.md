@@ -221,6 +221,37 @@ reticketing. Deleting a mute (unmute) restores the problem on the next read.
 Because it is a pure overlay, stored history and the report rollups are never
 touched: the truth stays queryable and the mute is auditable.
 
+### Retirement (permanent, and loud if it turns out wrong)
+
+A mute is for something coming back. A **retirement** is for something that is
+not: a collector that moved host leaves a `(source, collector)` whose last report
+sits there for ever, and `overview()` calls it silent for ever. Nothing in the
+service could end that — report rows are never deleted, the only `DELETE` route
+is `/api/mutes/{id}`, and a mute cannot cover it (mutes key on
+`(source, collector, label)`, a stale entry has no label, and every mute is
+clamped to a TTL).
+
+So the remedy was root ssh → `kubectl exec` → a hand-written `DELETE`. Used once,
+for the picade move on 2026-08-11: it took seven days to silence and destroyed
+1,757 report rows and 61,468 check rows — the cabinets' entire pre-move record.
+The SQL could not separate *stop reporting this* from *forget this ever ran*.
+
+`POST /api/retirements` is the same read-time overlay a mute is — nothing stored
+is rewritten, every row stays queryable — with one difference:
+
+- **no expiry.** Every mute must expire so intentional silence cannot rot into a
+  forgotten blind spot. A retirement cannot borrow that guard, because the
+  producer is not coming back and a TTL would just reopen the problem monthly.
+- **so the blind spot is closed at the other end.** A retired producer that
+  reports again appears in `Problems.returned` — surfaced on the problems page
+  and notified to the phone. It does **not** silently un-retire itself.
+  Convenience would be to un-retire; being loud is what catches a host coming
+  back that nobody meant to bring back.
+
+`returned` compares the latest report's `collected_at` against `retired_at`, so a
+report already in flight when the retirement lands is not a return — it was
+collected before the producer was declared finished.
+
 ### Staleness (first-class)
 
 A push-based monitor's worst failure mode is a dead producer looking green. The
