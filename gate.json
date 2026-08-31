@@ -118,7 +118,9 @@
         "--frozen-lockfile"
       ],
       "cwd": "frontend",
-      "env": {},
+      "env": {
+        "CI": "true"
+      },
       "name": "frontend deps match the lockfile",
       "timeout_s": 900
     },
@@ -133,7 +135,9 @@
         "lint"
       ],
       "cwd": "frontend",
-      "env": {},
+      "env": {
+        "CI": "true"
+      },
       "name": "frontend lint",
       "timeout_s": 900
     },
@@ -148,7 +152,9 @@
         "typecheck:e2e"
       ],
       "cwd": "frontend",
-      "env": {},
+      "env": {
+        "CI": "true"
+      },
       "name": "frontend typecheck (e2e)",
       "timeout_s": 900
     },
@@ -171,7 +177,9 @@
         "build"
       ],
       "cwd": "frontend",
-      "env": {},
+      "env": {
+        "CI": "true"
+      },
       "name": "frontend build",
       "timeout_s": 1800
     },
@@ -186,6 +194,7 @@
       ],
       "cwd": "frontend",
       "env": {
+        "CI": "true",
         "NG_BUILD_MAX_WORKERS": "1"
       },
       "name": "frontend unit tests",
@@ -202,7 +211,9 @@
         "ui-check"
       ],
       "cwd": "frontend",
-      "env": {},
+      "env": {
+        "CI": "true"
+      },
       "name": "frontend ui-check (phone-width layout harness)",
       "timeout_s": 1800
     },
