@@ -59,7 +59,7 @@ impl FromStr for Verdict {
 /// report's declared `interval_s` (see `report::staleness`). A push-based
 /// monitor's worst failure is a dead producer looking green, so this is
 /// first-class: `Silent` renders as a failure, `Overdue` as a warning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum Freshness {
@@ -120,7 +120,7 @@ pub struct CheckUpload {
 // --- responses (fleetwatch → UI). Serialize + TS. ---
 
 /// One tile on the overview: a (source, collector) with its latest rollup.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct OverviewEntry {
     pub source: String,
@@ -150,7 +150,7 @@ pub struct OverviewEntry {
 }
 
 /// A single failing/warning check surfaced on the problems view.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct ProblemCheck {
     pub source: String,
@@ -208,7 +208,7 @@ pub struct ProblemCheck {
 /// A failing/warning check that a live mute is currently suppressing. Shown in
 /// its own section so a deliberate silence stays visible (not vanished), with
 /// the reason and when it lapses.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct MutedCheck {
     pub source: String,
@@ -236,7 +236,7 @@ pub struct MutedCheck {
 /// The problems view: what's wrong right now — failing/warning checks, the ones
 /// a live mute is suppressing (kept visible, not notified), plus collectors that
 /// have gone silent/overdue (which no check can express).
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Problems {
     pub checks: Vec<ProblemCheck>,
@@ -267,7 +267,7 @@ pub struct Problems {
 
 /// A live suppression of one check identity `(source, collector, label)`. Always
 /// has a reason and a hard expiry — see migrations/0003_mutes.sql.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Mute {
     pub id: String,
