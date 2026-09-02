@@ -253,6 +253,26 @@ in  { name = "fleetwatch"
             ]
         , timeout_s = 1800
         }
+      , {-  A green gate has to mean the packages this repo PUBLISHES still build.
+            `packages.board` is the desk-side reader that home-manager installs
+            onto PATH (#1312); `packages.default` is an alias for it, so one row
+            covers both. The cargo rows above run in the dev shell against the
+            working tree, which shares almost everything with the packaged build
+            EXCEPT what breaks it — the source fileset (migrations/ was absent
+            from the first build's fileset and only `nix build` said so), the
+            vendored lockfile, and the derivation's own inputs. And a bad input
+            here does not fail this repo — it fails `home-manager switch` for
+            the whole Mac, long after the commit that broke it.
+
+            The board found this row missing itself: the flake gained packages
+            at e2e9518 and `check_gate_builds_its_packages` went red 41 minutes
+            later.
+        -}
+        G.Check::{
+        , name = "the board CLI packages (what home-manager installs)"
+        , argv = [ "nix", "build", "--no-warn-dirty", "--no-link", ".#board" ]
+        , timeout_s = 1800
+        }
       , G.checkTable "../dev-lint"
       , G.devLint "../"
       ]
