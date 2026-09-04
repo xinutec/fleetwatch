@@ -83,6 +83,7 @@ in  { name = "fleetwatch"
             G.clippyTarget
         , timeout_s = 1800
         }
+      , G.cargoDoc
       , {-  The whole suite, `tests/*_db.rs` included, against a throwaway
             MariaDB. Without the server those tests SKIP rather than fail, which
             is why the database is not optional here.
