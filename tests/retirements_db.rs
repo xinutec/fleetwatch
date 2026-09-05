@@ -6,7 +6,7 @@
 //! AGAIN is surfaced loudly rather than silently un-retired, and neither path
 //! touches a single stored row.
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use fleetwatch::report::repo;
 use fleetwatch::report::types::{CheckUpload, NewRetirement, ReportUpload, Verdict};
 use ulid::Ulid;
@@ -36,19 +36,38 @@ async fn clean(pool: &sqlx::MySqlPool, source: &str) {
         .unwrap();
 }
 
-/// A report whose `collected_at` is `age` in the past, so freshness is a
-/// property of the fixture rather than of how long the test took to run.
-async fn ingest_aged(pool: &sqlx::MySqlPool, source: &str, collector: &str, age: Duration) {
+/// A report collected at an exact instant.
+///
+/// ⚠ Use this, not `ingest_aged`, for anything about `returned`. That list is
+/// `collected_at > retired_at`, so a test of it needs the report placed relative
+/// to THE RETIREMENT — and `Utc::now()` only places it relative to whenever the
+/// test reached that line. Both columns are `DATETIME(3)`, so "now, just after
+/// retiring" is the same millisecond as the retirement whenever the intervening
+/// INSERT and read-back take under 1 ms, which on this machine is often: the two
+/// tests below failed **7 runs in 20 on an IDLE machine** before they took their
+/// timestamps from the retirement instead.
+async fn ingest_at(
+    pool: &sqlx::MySqlPool,
+    source: &str,
+    collector: &str,
+    collected_at: DateTime<Utc>,
+) {
     let upload = ReportUpload {
         schema: 1,
         id: Ulid::new().to_string(),
         collector: collector.into(),
-        collected_at: Utc::now() - age,
+        collected_at,
         duration_ms: None,
         interval_s: Some(600),
         checks: vec![check("a", Verdict::Pass)],
     };
     repo::ingest(pool, source, &upload, "{}").await.unwrap();
+}
+
+/// A report whose `collected_at` is `age` in the past, so freshness is a
+/// property of the fixture rather than of how long the test took to run.
+async fn ingest_aged(pool: &sqlx::MySqlPool, source: &str, collector: &str, age: Duration) {
+    ingest_at(pool, source, collector, Utc::now() - age).await
 }
 
 /// The gap this whole feature exists for: a producer that moved host keeps its
@@ -124,7 +143,7 @@ async fn a_retired_producer_that_reports_again_is_loud() {
     clean(&pool, source).await;
 
     ingest_aged(&pool, source, "moved", Duration::hours(10)).await;
-    repo::create_retirement(
+    let retirement = repo::create_retirement(
         &pool,
         &NewRetirement {
             source: source.into(),
@@ -136,13 +155,20 @@ async fn a_retired_producer_that_reports_again_is_loud() {
     .await
     .unwrap();
 
-    // It comes back. ⚠ `Duration::zero()` matters: `returned` compares the
-    // report's collected_at against retired_at, so a report timestamped even a
-    // second in the PAST is correctly not a return — it was collected before
-    // the retirement. An earlier version of this test used seconds(1) and
-    // failed for exactly that reason, which is the behaviour pinned below in
-    // `a_report_collected_before_the_retirement_is_not_a_return`.
-    ingest_aged(&pool, source, "moved", Duration::zero()).await;
+    // It comes back — ONE MILLISECOND after the retirement, which is the
+    // smallest gap `DATETIME(3)` can hold. Taking the instant from the
+    // retirement rather than from `Utc::now()` is what makes this a test of
+    // `returned` and not of how fast MariaDB answered: a report timestamped
+    // even slightly in the PAST is correctly not a return, which is pinned in
+    // `a_report_collected_before_the_retirement_is_not_a_return`, and one
+    // timestamped in the same millisecond is pinned in `not_a_return` below.
+    ingest_at(
+        &pool,
+        source,
+        "moved",
+        retirement.retired_at + Duration::milliseconds(1),
+    )
+    .await;
 
     let mine = |s: &str| s == source;
     let after = repo::problems(&pool).await.unwrap();
@@ -187,8 +213,17 @@ async fn re_retiring_keeps_the_original_timestamp() {
         .await
         .unwrap();
 
-    // It comes back, then somebody retires it again without noticing.
-    ingest_aged(&pool, source, "moved", Duration::zero()).await;
+    // It comes back, then somebody retires it again without noticing. The
+    // return is placed one millisecond after the retirement for the reason
+    // `ingest_at` gives — `Utc::now()` here lands in the retirement's own
+    // millisecond often enough to fail better than one run in three.
+    ingest_at(
+        &pool,
+        source,
+        "moved",
+        first.retired_at + Duration::milliseconds(1),
+    )
+    .await;
     let second = repo::create_retirement(&pool, &new("moved host, again"), "pippijn")
         .await
         .unwrap();
@@ -321,5 +356,70 @@ async fn a_report_collected_before_the_retirement_is_not_a_return() {
     assert!(
         !p.stale.iter().any(|e| e.source == source),
         "and it is still retired, so it is not stale either"
+    );
+}
+
+/// A report collected in the SAME MILLISECOND as the retirement is not a return.
+///
+/// This is the boundary, and it is stated here because not stating it cost real
+/// time: `returned` is `collected_at > retired_at` over two `DATETIME(3)`
+/// columns, so the finest distinction either can make is a millisecond, and
+/// equal is not greater. Two tests above used to say "retire, then report NOW"
+/// and landed inside that millisecond whenever the intervening round trip was
+/// quick — 7 failures in 20 runs on an idle machine, read for a day as a
+/// concurrency problem because the one re-run that acquitted it happened to
+/// pass.
+///
+/// The behaviour itself is right: at equal timestamps nothing distinguishes a
+/// report that arrived just before the retirement from one just after, and
+/// announcing a return that may not have happened is the louder mistake. What
+/// was wrong was a test asserting on an ordering it did not set.
+#[tokio::test]
+async fn a_report_collected_in_the_retirements_own_millisecond_is_not_a_return() {
+    let source = "test-retire-sameinstant";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping");
+        return;
+    };
+    clean(&pool, source).await;
+    ingest_aged(&pool, source, "moved", Duration::hours(10)).await;
+
+    let retirement = repo::create_retirement(
+        &pool,
+        &NewRetirement {
+            source: source.into(),
+            collector: "moved".into(),
+            reason: "gone".into(),
+        },
+        "pippijn",
+    )
+    .await
+    .unwrap();
+
+    ingest_at(&pool, source, "moved", retirement.retired_at).await;
+
+    let p = repo::problems(&pool).await.unwrap();
+    assert!(
+        !p.returned.iter().any(|e| e.source == source),
+        "equal is not greater — the same millisecond is not a return"
+    );
+
+    // And one millisecond later IS, so the assertion above is about the
+    // boundary rather than about `returned` being empty for some other reason.
+    ingest_at(
+        &pool,
+        source,
+        "moved",
+        retirement.retired_at + Duration::milliseconds(1),
+    )
+    .await;
+    assert!(
+        repo::problems(&pool)
+            .await
+            .unwrap()
+            .returned
+            .iter()
+            .any(|e| e.source == source),
+        "one millisecond past the retirement is a return"
     );
 }
