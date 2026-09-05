@@ -216,7 +216,7 @@ async fn re_retiring_keeps_the_original_timestamp() {
     // It comes back, then somebody retires it again without noticing. The
     // return is placed one millisecond after the retirement for the reason
     // `ingest_at` gives — `Utc::now()` here lands in the retirement's own
-    // millisecond often enough to fail better than one run in three.
+    // millisecond often enough that this test alone failed 4 runs in 20.
     ingest_at(
         &pool,
         source,
