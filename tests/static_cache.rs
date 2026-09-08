@@ -164,3 +164,28 @@ async fn a_revalidated_asset_is_still_told_it_may_be_kept() {
         Some("public, max-age=31536000, immutable"),
     );
 }
+
+/// **A missing FILE must 404, not be handed the page.**
+///
+/// #1478, measured 2026-09-08: `GET /media/nope.woff2` came back `200 text/html`
+/// — the SPA shell, to a browser that asked for a font. It renders broken icons
+/// and reports nothing at all, so the failure is silent on both sides; the wrong
+/// answer being a 200 is exactly what makes this invisible.
+///
+/// The rule is a dot in the last path segment: `/problems` is a route and
+/// `/main-ABC123.js` is a file. A heuristic, and the alternative — enumerating
+/// the bundle's own asset names — would have to be rebuilt whenever `ng build`
+/// changes a hash. `tasks` and memview's console both landed this same fix.
+#[tokio::test]
+async fn a_missing_asset_is_a_404_and_not_the_page() {
+    let (status, _) = cache_control("/media/nope.woff2").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// The other half, and it is the one a careless fix breaks: a client-side route
+/// has no dot and must still load the shell, or every deep link 404s.
+#[tokio::test]
+async fn a_deep_link_still_gets_the_page() {
+    let (status, _) = cache_control("/problems").await;
+    assert_eq!(status, StatusCode::OK);
+}
