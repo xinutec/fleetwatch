@@ -11,12 +11,62 @@ pub mod telemetry;
 pub mod views;
 
 use axum::Router;
+use axum::http::{HeaderValue, Response, header};
 use axum::routing::{delete, get, post};
+use tower::ServiceBuilder;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
 use crate::state::AppState;
+
+/// How long a static response may be reused without asking again.
+///
+/// ⚠ **`index.html` MUST REVALIDATE.** With no `Cache-Control` at all — which
+/// is what this served from 2026-07-04 until it was measured on 2026-09-07 — a
+/// client falls back to HEURISTIC freshness, roughly a tenth of the document's
+/// age, and may keep it for days without ever asking. The document names the
+/// content-hashed bundle, so the new `main-*.js` is never fetched either and a
+/// deploy is invisible: an Android `WebView` loaded messages' API and a whole
+/// thread while running several builds behind, with a missing button as the
+/// only symptom.
+///
+/// `no-cache` means "ask first", not "never keep" — the `ETag` still turns the
+/// usual case into a 304 with no body.
+///
+/// Everything else Angular emits carries a content hash in its NAME, so a new
+/// build is a new URL and the old one can never be wrong. Those are the one
+/// kind of response `immutable` is honestly available for.
+///
+/// Generic over the body: `ServeDir`'s response body type depends on what it
+/// falls back to, and this predicate only ever reads a header.
+fn cache_control_for<B>(res: &Response<B>) -> Option<HeaderValue> {
+    // ⚠ **A 404 is not an asset.** `SetResponseHeaderLayer::overriding` stamps
+    // whatever the service returned, and a missing file answered with a year of
+    // `immutable` is a client that will not ask for that name again this year.
+    // Only a response that carried something may say how long it keeps.
+    //
+    // ⚠ NOT `!is_success()`. That excludes **304 Not Modified**, which must
+    // carry the headers a 200 would so the client can refresh what it already
+    // holds. Stripping it made every revalidated image a full re-fetch, and the
+    // arriving bytes grew the thread AFTER it had scrolled to the bottom —
+    // `thread-scroll.spec.ts` caught it at 271px off, a symptom with no visible
+    // connection to a cache header.
+    if res.status().is_client_error() || res.status().is_server_error() {
+        return None;
+    }
+    let is_html = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("text/html"));
+    Some(if is_html {
+        HeaderValue::from_static("no-cache")
+    } else {
+        HeaderValue::from_static("public, max-age=31536000, immutable")
+    })
+}
 
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
@@ -67,6 +117,15 @@ pub fn router(state: AppState) -> Router {
     // where `ng serve` proxies /api).
     if let Some(dir) = state.cfg.static_dir.clone() {
         let serve = ServeDir::new(&dir).fallback(ServeFile::new(format!("{dir}/index.html")));
+        // ⚠ The layer wraps the STATIC SERVICE ALONE. `health`'s first attempt
+        // hooked every route and stamped a year of `immutable` onto API JSON,
+        // which is this bug pointing the other way.
+        let serve = ServiceBuilder::new()
+            .layer(SetResponseHeaderLayer::overriding(
+                header::CACHE_CONTROL,
+                cache_control_for,
+            ))
+            .service(serve);
         app = app.fallback_service(serve);
     }
 
