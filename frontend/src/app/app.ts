@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { BUILD_INFO } from './build-info';
 import { ProblemsStore } from './problems-store';
+import { AppSwUpdates } from './sw-updates';
 import { Telemetry } from './telemetry';
 
 @Component({
@@ -25,6 +26,13 @@ export class App {
    */
   private readonly telemetry = inject(Telemetry);
 
+  /**
+   * Self-update. Started here for the same reason the trace is: a dashboard that
+   * has to be told to check for a new build is one that shows stale fleet status
+   * on whichever screen nobody thought about.
+   */
+  private readonly swUpdates = inject(AppSwUpdates);
+
   // Standing badge on the Problems tab, fed by the shared store — the same
   // resource the problems page shows and refreshes, so the badge stays live.
   readonly problemCount = inject(ProblemsStore).count;
@@ -39,5 +47,6 @@ export class App {
     // After the field initialisers, so the router this subscribes to exists.
     // Idempotent, so a shell recreated in a test does not stack listeners.
     this.telemetry.init();
+    this.swUpdates.start();
   }
 }
