@@ -96,8 +96,9 @@ in  { name = "fleetwatch"
         G.Check::{
         , name = "tests (against a real MariaDB)"
         , argv =
-              G.inDevShell [ "nix", "run", "../dev-lint#with-test-db", "--" ]
-            # [ "--database"
+            G.withTestDb
+              "../"
+              [ "--database"
               , "fleetwatch"
               , "--user"
               , "fleetwatch"
