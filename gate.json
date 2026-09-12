@@ -11,6 +11,7 @@
         "--all",
         "--check"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "formatting",
@@ -29,6 +30,7 @@
         "-D",
         "warnings"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {
         "CARGO_TARGET_DIR": "target/clippy"
@@ -47,6 +49,7 @@
         "--no-deps",
         "--workspace"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {
         "RUSTDOCFLAGS": "-D rustdoc::broken_intra_doc_links"
@@ -78,6 +81,7 @@
         "cargo",
         "test"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "tests (against a real MariaDB)",
@@ -92,6 +96,7 @@
         "scripts/gen-types.sh",
         "--check"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "generated types are current",
@@ -107,6 +112,7 @@
         "test",
         "export_golden"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "the golden wire fixture regenerates",
@@ -120,6 +126,7 @@
         "--",
         "tests/golden"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "the golden wire fixture is current",
@@ -135,6 +142,7 @@
         "install",
         "--frozen-lockfile"
       ],
+      "artifacts": [],
       "cwd": "frontend",
       "env": {
         "CI": "true"
@@ -152,6 +160,7 @@
         "run",
         "lint"
       ],
+      "artifacts": [],
       "cwd": "frontend",
       "env": {
         "CI": "true"
@@ -169,6 +178,7 @@
         "run",
         "typecheck:e2e"
       ],
+      "artifacts": [],
       "cwd": "frontend",
       "env": {
         "CI": "true"
@@ -194,6 +204,7 @@
         "ng",
         "build"
       ],
+      "artifacts": [],
       "cwd": "frontend",
       "env": {
         "CI": "true"
@@ -210,6 +221,7 @@
         "pnpm",
         "test"
       ],
+      "artifacts": [],
       "cwd": "frontend",
       "env": {
         "CI": "true",
@@ -228,6 +240,9 @@
         "run",
         "ui-check"
       ],
+      "artifacts": [
+        "test-results"
+      ],
       "cwd": "frontend",
       "env": {
         "CI": "true"
@@ -245,6 +260,7 @@
         "--console=plain",
         ":app:assembleDebug"
       ],
+      "artifacts": [],
       "cwd": "android",
       "env": {},
       "name": "android :app assembleDebug",
@@ -260,6 +276,7 @@
         "--console=plain",
         ":app:testDebugUnitTest"
       ],
+      "artifacts": [],
       "cwd": "android",
       "env": {},
       "name": "android :app unit tests",
@@ -273,6 +290,7 @@
         "--no-link",
         ".#board"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "the board CLI packages (what home-manager installs)",
@@ -288,6 +306,7 @@
         "gate.dhall",
         "gate.json"
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "the table matches its Dhall",
@@ -301,6 +320,7 @@
         "--",
         "."
       ],
+      "artifacts": [],
       "cwd": ".",
       "env": {},
       "name": "dev-lint",
