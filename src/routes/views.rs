@@ -1,6 +1,9 @@
-//! The read side: GET endpoints backing every UI view. Each requires a valid
+//! The read side: GET endpoints backing every UI view. Most require a valid
 //! Nextcloud-login session (the `AuthUser` extractor 401s otherwise) — the VPN
-//! is no longer the gate. Each handler is thin and delegates to `report::repo`.
+//! is no longer the gate. `/api/problems` and `/api/history` take `Reader`
+//! instead, which accepts that session OR a read token; both are keyed or
+//! summary answers that enumerate nothing. Each handler is thin and delegates to
+//! `report::repo`.
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -26,10 +29,12 @@ pub async fn overview(
 
 /// GET /api/problems — failing/warning checks + overdue/silent collectors.
 ///
-/// The one read endpoint a *read token* can reach (`Reader`, not `AuthUser`): the
-/// Android app polls it from the background to decide whether to raise a notification,
-/// and a background worker can't complete an interactive Nextcloud login. Everything
-/// else here stays session-only.
+/// Reachable by a *read token* (`Reader`, not `AuthUser`): the Android app polls it
+/// from the background to decide whether to raise a notification, and a background
+/// worker can't complete an interactive Nextcloud login.
+///
+/// It was the ONLY such endpoint until 2026-09-13; `/api/history` is the second.
+/// The rest stay session-only.
 pub async fn problems(
     _reader: Reader,
     State(app): State<AppState>,
@@ -86,8 +91,21 @@ pub struct HistoryQuery {
 }
 
 /// GET /api/history — time series for one check. Defaults to the last 30 days.
+///
+/// `Reader`, not `AuthUser`, since 2026-09-13. A board row is the LAST thing a
+/// collector said, so for a daily collector it cannot answer "how often does this
+/// actually fail?" — the question a flaky nightly turns on. The per-night verdicts
+/// already existed in the `report` rows, behind a login an unattended reader
+/// cannot perform, so the only alternative was one data point per night
+/// (memview#1243).
+///
+/// ⚠ **Narrower than it looks, which is what made it acceptable.** It answers for
+/// ONE fully specified key — source, collector, section AND label are all
+/// required, none optional — so it enumerates nothing and cannot be swept for
+/// what exists. `/api/overview` and `/api/reports` stay session-only precisely
+/// because they DO enumerate.
 pub async fn history(
-    _user: AuthUser,
+    _reader: Reader,
     State(app): State<AppState>,
     Query(q): Query<HistoryQuery>,
 ) -> Result<Json<History>, AppError> {

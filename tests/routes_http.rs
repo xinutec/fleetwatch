@@ -83,14 +83,27 @@ async fn read_endpoint_without_session_is_401() {
 }
 
 #[tokio::test]
-async fn problems_without_any_credential_is_401() {
-    // /api/problems is the one endpoint a read token can reach. With no credential at
-    // all it must still 401 — the token widens who may read, never whether auth applies.
-    let res = app()
-        .oneshot(Request::get("/api/problems").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+async fn a_reader_endpoint_without_any_credential_is_401() {
+    // Both endpoints a read token can reach. With no credential at all each must still
+    // 401 — a read token widens WHO may read, never WHETHER auth applies.
+    //
+    // ⚠ /api/history carries its full key here on purpose: `Query` runs before the
+    // extractor rejects, so a keyless URL would 400 and the assertion would pass
+    // without ever testing auth.
+    for path in [
+        "/api/problems",
+        "/api/history?source=mac-mini&collector=verify&section=verify&label=memview",
+    ] {
+        let res = app()
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::UNAUTHORIZED,
+            "{path} must still require a credential"
+        );
+    }
 }
 
 #[tokio::test]
@@ -124,11 +137,42 @@ async fn problems_with_a_valid_read_token_passes_auth() {
 }
 
 #[tokio::test]
-async fn a_read_token_cannot_reach_any_other_endpoint() {
-    // Least privilege, and the test that keeps it that way: the phone's token opens
-    // /api/problems and nothing else. If someone later swaps another handler to
-    // `Reader`, this fails.
-    for path in ["/api/overview", "/api/reports", "/api/history"] {
+async fn history_with_a_valid_read_token_passes_auth() {
+    // Added 2026-09-13: an unattended reader needs "how often did this fail?", which a
+    // board row cannot answer for a daily collector (memview#1243). Same shape of
+    // assertion as problems above — through auth, then a 5xx on the dud pool.
+    //
+    // ⚠ All four key parts, because they are REQUIRED and that requirement is the
+    // security argument: this endpoint answers about a key the caller already knows
+    // and enumerates nothing. Omitting one yields a 400 from `Query`, which would
+    // pass an `assert_ne!(401)` for the wrong reason.
+    let res = app()
+        .oneshot(
+            Request::get(
+                "/api/history?source=mac-mini&collector=verify&section=verify&label=memview",
+            )
+            .header("authorization", "Bearer read-token-0123456789abcdef")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_ne!(
+        res.status(),
+        StatusCode::BAD_REQUEST,
+        "all four key parts are supplied, so this must not be a query-rejection"
+    );
+}
+
+#[tokio::test]
+async fn a_read_token_cannot_reach_the_enumerating_endpoints() {
+    // Least privilege, and the test that keeps it that way. The line is ENUMERATION:
+    // a read token may ask about a check it can already name (/api/problems,
+    // /api/history) but must not be able to LIST what exists. If someone later swaps
+    // one of these to `Reader`, this fails — and that is deliberate, so weigh it
+    // rather than deleting the path from the list.
+    for path in ["/api/overview", "/api/reports"] {
         let res = app()
             .oneshot(
                 Request::get(path)

@@ -133,9 +133,16 @@ where
 /// Extractor: a *reader* — either a logged-in human (session cookie) or an
 /// unattended poller holding a read token. Rejects with 401 otherwise.
 ///
-/// Only `/api/problems` uses this. The human dashboard stays behind the Nextcloud
-/// login; the read token exists solely so the Android app can ask "is anything wrong?"
-/// from the background, where an interactive SSO is impossible.
+/// `/api/problems` and `/api/history` use this. The human dashboard stays behind
+/// the Nextcloud login; the read token exists so an unattended client can ask "is
+/// anything wrong?" — and, since 2026-09-13, "how often has it been wrong?" — from
+/// the background, where an interactive SSO is impossible.
+///
+/// ⚠ **The line these two sit on the safe side of is ENUMERATION.** Each answers a
+/// question the caller already framed: problems returns a fixed summary, history
+/// needs all four key parts spelled out and so cannot be swept for what exists.
+/// `/api/overview` and `/api/reports` LIST what exists, and a token that cannot
+/// complete an SSO must not be able to do that.
 pub struct Reader;
 
 impl<S> FromRequestParts<S> for Reader
