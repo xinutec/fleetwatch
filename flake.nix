@@ -34,6 +34,9 @@
           cargoBuildFlags = [ "--bin" "board" ];
           # The gate runs the tests, against the ephemeral MariaDB this sandbox
           # has none of. A second run here would be a slower way to learn less.
+          # The gate's "tests (against a real MariaDB)" row brings one up; the sandbox
+          # has none.
+          # dev-lint: allow-docheck-false the suite needs a real MariaDB
           doCheck = false;
           meta.mainProgram = "board";
         };
