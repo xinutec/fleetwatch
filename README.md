@@ -74,8 +74,9 @@ CI here publishes `xinutec/fleetwatch:latest` on push to main. The k8s manifests
 live in the home monorepo (`xinutec/pippijn` `code/kubes/fleetwatch/k8s/`); run
 the deploy steps from that checkout. On isis:
 
-1. One-time: `letsencrypt-dns` issuer + `cloudflare-api-token` (shared with
-   messages, already present); `./k8s/secret.sh` (DB creds + ingest tokens —
-   copy each printed token to its producer's `~/.config/fleetwatch/token`); the DNS A
-   record `fleetwatch → 10.100.0.2` (`code/dns`, `tofu apply`).
+1. One-time: `./k8s/secret.sh` (DB creds + ingest tokens — copy each printed
+   token to its producer; a host's is `/var/lib/fleetwatch/token`, listed in
+   xinutec-infra's `plan/tables/credentials_rows.dhall`); the DNS A record
+   `fleetwatch → 10.100.0.2` (`code/dns`, `tofu apply`). TLS is isis's host
+   nginx.
 2. `sudo ./k8s/sync.sh`.
