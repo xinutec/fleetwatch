@@ -4,6 +4,7 @@ import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { scaffoldTitle } from '@xinutec/ui-scaffold';
 
 import { History as HistoryData } from '../../models';
 import { fmtValue } from '../../status';
@@ -24,6 +25,11 @@ export class History {
   readonly collector = input('', { transform: (v: string | undefined) => v ?? '' });
   readonly section = input('', { transform: (v: string | undefined) => v ?? '' });
   readonly label = input('', { transform: (v: string | undefined) => v ?? '' });
+
+  constructor() {
+    // The bar names the screen: the check this is the history of.
+    scaffoldTitle(() => this.label());
+  }
 
   // Idle (no request) until all four params are present; otherwise fetches and
   // re-fetches whenever any of them changes.

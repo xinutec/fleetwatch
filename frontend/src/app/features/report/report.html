@@ -8,7 +8,6 @@
 
   @if (detail.value(); as d) {
     <header class="head">
-      <h2>{{ d.collector }}</h2>
       <span class="sub tnum">
         {{ d.source }} · {{ d.collected_at | date: 'MMM d, HH:mm' }}
         @if (d.duration_ms !== null) {

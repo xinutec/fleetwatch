@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatIconModule } from '@angular/material/icon';
+import { Scaffold } from '@xinutec/ui-scaffold';
 
 import { BUILD_INFO } from './build-info';
 import { ProblemsStore } from './problems-store';
@@ -11,7 +12,7 @@ import { Telemetry } from './telemetry';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatBadgeModule, MatIconModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatBadgeModule, MatIconModule, Scaffold],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

@@ -5,6 +5,7 @@ import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { scaffoldTitle } from '@xinutec/ui-scaffold';
 
 import { CheckOut, ReportDetail } from '../../models';
 import { fmtValue } from '../../status';
@@ -32,6 +33,11 @@ export class Report {
   readonly detail = httpResource<ReportDetail>(
     () => `/api/reports/${encodeURIComponent(this.id())}`,
   );
+
+  constructor() {
+    // The bar names the screen: the collector, once the report says which.
+    scaffoldTitle(() => this.detail.value()?.collector ?? { text: 'Report', provisional: true });
+  }
 
   /** Checks grouped under their section header, in report order. */
   readonly sections = computed<Section[]>(() => {

@@ -1,14 +1,14 @@
-<header class="topbar">
-  <span class="brand">
-    <mat-icon aria-hidden="true">dns</mat-icon>
-    Fleetwatch
-  </span>
-  <span class="build tnum" title="running build">{{ build.sha }}</span>
-</header>
+<div class="main">
+  <!-- The bar every app draws (`@xinutec/ui-scaffold`): the app's name at the root
+       and on Problems, an arrow up and the screen's name on a report or a history. -->
+  <ui-scaffold title="Fleetwatch">
+    <span class="build tnum" title="running build">{{ build.sha }}</span>
+  </ui-scaffold>
 
-<main class="content">
-  <router-outlet />
-</main>
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>
 
 <nav class="nav" aria-label="Sections">
   @for (t of tabs(); track t.path) {

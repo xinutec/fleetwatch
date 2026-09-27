@@ -3,6 +3,7 @@ import {
   expectNoTextOverlaps,
   expectNoHorizontalOverflow,
   expectRecoversFromMissingBundle,
+  expectUpInTheBar,
   expectViewportIsPhone,
 } from '@xinutec/ui-harness';
 
@@ -224,4 +225,20 @@ test('report — one collector detail: lays out cleanly @ phone width', async ({
   await page.getByText('fleet-health', { exact: false }).first().waitFor();
   await expectNoTextOverlaps(page, testInfo);
   await expectNoHorizontalOverflow(page, testInfo);
+});
+
+// A report and a history are drilled into: the bar leads with the arrow up and
+// names the screen (@xinutec/ui-scaffold, #1805).
+test('report — the bar goes up and names the collector', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/reports/r2');
+  await page.getByText('mac-mini ·', { exact: false }).first().waitFor();
+  await expectUpInTheBar(page);
+});
+
+test('history — the bar goes up and names the check', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/history?source=odin&collector=doc-checks&section=s&label=swap%20in%20use');
+  await page.getByText('Recent runs').waitFor();
+  await expectUpInTheBar(page);
 });

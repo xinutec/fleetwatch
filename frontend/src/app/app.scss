@@ -4,32 +4,18 @@
   min-height: 100dvh;
 }
 
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+// The running build, on the bar beside the app's name.
+.build {
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// The bar and the screen under it, a column beside the nav.
+.main {
+  flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: calc(env(safe-area-inset-top) + 0.6rem) 1rem 0.6rem;
-  background: var(--mat-sys-surface-container);
-  color: var(--mat-sys-on-surface);
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font: var(--mat-sys-title-medium);
-
-    mat-icon {
-      color: var(--mat-sys-primary);
-    }
-  }
-  .build {
-    font: var(--mat-sys-label-small);
-    color: var(--mat-sys-on-surface-variant);
-  }
+  flex-direction: column;
+  min-width: 0;
 }
 
 .content {
@@ -73,9 +59,6 @@
 @media (min-width: 768px) {
   :host {
     flex-direction: row;
-  }
-  .topbar {
-    display: none;
   }
   .nav {
     position: sticky;
