@@ -73,8 +73,6 @@
         "fleetwatch",
         "--password",
         "fleetwatch",
-        "--port",
-        "3317",
         "--url-env",
         "FLEETWATCH_TEST_DATABASE_URL",
         "--",
