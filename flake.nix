@@ -32,10 +32,9 @@
           };
           cargoLock.lockFile = ./Cargo.lock;
           cargoBuildFlags = [ "--bin" "board" ];
-          # The gate runs the tests, against the ephemeral MariaDB this sandbox
-          # has none of. A second run here would be a slower way to learn less.
-          # The gate's "tests (against a real MariaDB)" row brings one up; the sandbox
-          # has none.
+          # The gate's "tests (against a real MariaDB)" row runs the tests against a
+          # MariaDB it brings up, which this sandbox has none of; a second run here
+          # would be a slower way to learn less.
           # dev-lint: allow-docheck-false the suite needs a real MariaDB
           doCheck = false;
           meta.mainProgram = "board";
