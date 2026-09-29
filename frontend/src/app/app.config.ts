@@ -1,4 +1,4 @@
-import {
+import { ErrorHandler,
   ApplicationConfig,
   LOCALE_ID,
   isDevMode,
@@ -18,6 +18,7 @@ import { registerLocaleData } from '@angular/common';
 import localeEnGb from '@angular/common/locales/en-GB';
 
 import { routes } from './app.routes';
+import { TelemetryErrorHandler, failedRequestInterceptor } from './error-reporting';
 
 // Angular defaults LOCALE_ID to `en-US` whatever the browser is set to, so every
 // `| date` rendered US dates to a UK reader. It is a different knob from
@@ -29,13 +30,14 @@ registerLocaleData(localeEnGb);
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: ErrorHandler, useClass: TelemetryErrorHandler },
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
     { provide: LOCALE_ID, useValue: 'en-GB' },
     // withComponentInputBinding: query/path params bind straight to component
     // inputs (the history view reads source/collector/section/label this way).
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withFetch(), withInterceptors([authRedirectInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([authRedirectInterceptor, failedRequestInterceptor])),
     // Cache the app shell + last-seen status so the dashboard opens instantly
     // (and shows the last snapshot offline) — prod build only.
     provideServiceWorker('ngsw-worker.js', {
