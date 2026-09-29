@@ -4,11 +4,6 @@
 
 import { Freshness, Verdict } from './models';
 
-/** CSS modifier class for a verdict (matches the .dot/.pill grammar in styles). */
-export function verdictClass(v: Verdict): string {
-  return v;
-}
-
 /** How a collector's freshness renders: a fresh collector shows its worst
  *  verdict; an overdue/silent one overrides to warn/fail — a dead producer must
  *  not look green. Returns the CSS modifier class to apply to the tile. */

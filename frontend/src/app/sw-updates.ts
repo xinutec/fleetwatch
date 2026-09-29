@@ -4,7 +4,6 @@ import {
   type PagePort,
   type ServiceWorkerPort,
   SwUpdates,
-  type UpdateOutcome,
 } from '@xinutec/ui-harness/sw-updates';
 import { filter } from 'rxjs';
 
@@ -70,10 +69,5 @@ export class AppSwUpdates {
 
   start(): void {
     this.policy.start();
-  }
-
-  /** Manual "check for updates", for a settings screen to call. */
-  checkNow(): Promise<UpdateOutcome> {
-    return this.policy.checkNow();
   }
 }
