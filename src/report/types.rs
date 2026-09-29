@@ -248,7 +248,7 @@ pub struct Problems {
     // happens rather than after.
     //
     // The picades' mutes lapsed on 2026-08-19 and their failures reappeared with
-    // nothing said; the dashboard sat red for two days until Pippijn asked why.
+    // nothing said; the dashboard sat red for two days until the user asked why.
     // That silence is correct for the expiry itself — a mute must expire, and no
     // reticketing is the point — but the expiry was knowable a week ahead.
     pub lapsing: Vec<Mute>,

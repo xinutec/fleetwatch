@@ -80,7 +80,7 @@ const PROBLEMS = {
     {
       id: '01JZE2E0000000000000000001', source: 'mac-mini', collector: 'fleet-health',
       label: 'root filesystem usage above threshold',
-      reason: 'clearing caches this week', created_by: 'pippijn',
+      reason: 'clearing caches this week', created_by: 'user',
       created_at: ago(86400), expires_at: ago(-3600),
     },
   ],

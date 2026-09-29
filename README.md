@@ -20,7 +20,7 @@ serving both the API and the bundle. Same shape as `life`/`messages`.
 - `migrations/` — sqlx migrations, run at boot.
 
 The k8s manifests (`k8s/` — numbered manifests + `secret.sh` + `sync.sh`) live in
-the home monorepo at `xinutec/pippijn` `code/kubes/fleetwatch/k8s/`. This repo
+the home monorepo at `code/kubes/fleetwatch/k8s/`. This repo
 builds and pushes the image; the `xinutec/fleetwatch:latest` tag is the only
 contract between the two.
 
@@ -71,10 +71,10 @@ nix run ../dev-lint#gate -- . gate.json                # full gate (gate.dhall)
 ## Deploy (isis)
 
 CI here publishes `xinutec/fleetwatch:latest` on push to main. The k8s manifests
-live in the home monorepo (`xinutec/pippijn` `code/kubes/fleetwatch/k8s/`); run
+live in the home monorepo (`code/kubes/fleetwatch/k8s/`); run
 the deploy steps from that checkout. On isis:
 
-1. One-time: `pippijn/code/kubes/fleetwatch/k8s/secret.sh` (DB creds + ingest tokens — copy each printed
+1. One-time: `code/kubes/fleetwatch/k8s/secret.sh` (DB creds + ingest tokens — copy each printed
    token to its producer; a host's is `/var/lib/fleetwatch/token`, listed in
    xinutec-infra's `plan/tables/credentials_rows.dhall`); the DNS A record
    `fleetwatch → 10.100.0.2` (`code/dns`, `tofu apply`). TLS is isis's host

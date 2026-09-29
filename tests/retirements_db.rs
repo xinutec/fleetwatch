@@ -103,7 +103,7 @@ async fn retiring_a_producer_removes_it_from_stale_without_deleting_history() {
             collector: "moved".into(),
             reason: "collector moved amun -> isis".into(),
         },
-        "pippijn",
+        "user",
     )
     .await
     .unwrap();
@@ -150,7 +150,7 @@ async fn a_retired_producer_that_reports_again_is_loud() {
             collector: "moved".into(),
             reason: "decommissioned".into(),
         },
-        "pippijn",
+        "user",
     )
     .await
     .unwrap();
@@ -209,7 +209,7 @@ async fn re_retiring_keeps_the_original_timestamp() {
         collector: "moved".into(),
         reason: reason.into(),
     };
-    let first = repo::create_retirement(&pool, &new("moved host"), "pippijn")
+    let first = repo::create_retirement(&pool, &new("moved host"), "user")
         .await
         .unwrap();
 
@@ -224,7 +224,7 @@ async fn re_retiring_keeps_the_original_timestamp() {
         first.retired_at + Duration::milliseconds(1),
     )
     .await;
-    let second = repo::create_retirement(&pool, &new("moved host, again"), "pippijn")
+    let second = repo::create_retirement(&pool, &new("moved host, again"), "user")
         .await
         .unwrap();
 
@@ -273,7 +273,7 @@ async fn un_retiring_restores_staleness() {
             collector: "moved".into(),
             reason: "gone".into(),
         },
-        "pippijn",
+        "user",
     )
     .await
     .unwrap();
@@ -313,7 +313,7 @@ async fn a_retirement_needs_a_reason() {
             collector: "moved".into(),
             reason: "   ".into(),
         },
-        "pippijn",
+        "user",
     )
     .await;
     assert!(err.is_err(), "a blank reason must be refused");
@@ -340,7 +340,7 @@ async fn a_report_collected_before_the_retirement_is_not_a_return() {
             collector: "moved".into(),
             reason: "gone".into(),
         },
-        "pippijn",
+        "user",
     )
     .await
     .unwrap();
@@ -391,7 +391,7 @@ async fn a_report_collected_in_the_retirements_own_millisecond_is_not_a_return()
             collector: "moved".into(),
             reason: "gone".into(),
         },
-        "pippijn",
+        "user",
     )
     .await
     .unwrap();

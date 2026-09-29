@@ -111,7 +111,7 @@ fn export_golden_problems() {
             collector: "restic".into(),
             label: "restic drill".into(),
             reason: "drill scheduled for the weekend".into(),
-            created_by: "pippijn".into(),
+            created_by: "user".into(),
             created_at: at(1, 0),
             expires_at: at(20, 0),
         }],

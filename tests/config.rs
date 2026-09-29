@@ -20,9 +20,9 @@ fn session_secret_rejects_short_keys() {
 #[test]
 fn dev_login_bypass_refused_only_with_static_serving() {
     // Dev: bypass on, no static bundle → allowed.
-    assert!(check_dev_login_safe(Some("pippijn"), None).is_ok());
+    assert!(check_dev_login_safe(Some("user"), None).is_ok());
     // Prod: bypass on WHILE serving the bundle → refuse to boot.
-    assert!(check_dev_login_safe(Some("pippijn"), Some("/srv/www")).is_err());
+    assert!(check_dev_login_safe(Some("user"), Some("/srv/www")).is_err());
     // Prod with the bypass unset is fine; so is bare API-only dev.
     assert!(check_dev_login_safe(None, Some("/srv/www")).is_ok());
     assert!(check_dev_login_safe(None, None).is_ok());
