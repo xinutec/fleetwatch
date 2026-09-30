@@ -13,22 +13,27 @@
 
 use std::process::ExitCode;
 
+use clap::Parser;
+
 use fleetwatch::board;
 use fleetwatch::report::types::Problems;
 
 const KEYCHAIN_ITEM: &str = "fleetwatch-read-token";
 
-fn usage() -> String {
+/// Prints fleetwatch's current problems (GET /api/problems).
+#[derive(Parser)]
+#[command(after_help = after_help())]
+struct Cli {
+    /// Print the service's response verbatim instead.
+    #[arg(long)]
+    json: bool,
+}
+
+fn after_help() -> String {
     format!(
-        "usage: {bin} [--json]\n\
-         \n\
-         Prints fleetwatch's current problems (GET /api/problems).\n\
-         --json prints the service's response verbatim instead.\n\
-         \n\
-         Auth: $FLEETWATCH_READ_TOKEN, else Keychain item `{KEYCHAIN_ITEM}`.\n\
+        "Auth: $FLEETWATCH_READ_TOKEN, else Keychain item `{KEYCHAIN_ITEM}`.\n\
          URL:  $FLEETWATCH_BASE_URL, else https://fleetwatch.xinutec.org\n\
-         Exit: 0 nothing notifiable, 1 notifiable problems, 2 read failed.\n",
-        bin = env!("CARGO_BIN_NAME"),
+         Exit: 0 nothing notifiable, 1 notifiable problems, 2 read failed."
     )
 }
 
@@ -98,19 +103,7 @@ async fn fetch(json: bool) -> Result<ExitCode, String> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let json = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-        [] => false,
-        ["--json"] => true,
-        ["--help" | "-h"] => {
-            print!("{}", usage());
-            return ExitCode::SUCCESS;
-        }
-        _ => {
-            eprint!("{}", usage());
-            return ExitCode::from(2);
-        }
-    };
+    let json = Cli::parse().json;
     match fetch(json).await {
         Ok(code) => code,
         Err(e) => {
