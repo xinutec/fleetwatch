@@ -21,9 +21,7 @@ html {
   // chart point. light-dark() keeps each legible in both schemes (html sets
   // color-scheme). pass/warn are semantic (not the brand orange); fail reuses
   // the theme error; skip/fresh are neutral.
-  // dev-lint: allow-hardcoded-color status green/amber are semantic, deliberately outside the orange theme; light-dark() adapts them per scheme
   --v-pass: light-dark(#2e7d32, #66bb6a);
-  // dev-lint: allow-hardcoded-color status green/amber are semantic, deliberately outside the orange theme; light-dark() adapts them per scheme
   --v-warn: light-dark(#e08600, #ffb300);
   --v-fail: var(--mat-sys-error);
   --v-skip: var(--mat-sys-on-surface-variant);
