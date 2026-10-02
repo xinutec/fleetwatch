@@ -7,6 +7,8 @@ import {
   expectViewportIsPhone,
 } from '@xinutec/ui-harness';
 
+import type { History, HistoryPoint, OverviewEntry, Problems, ReportDetail } from '../src/app/models';
+
 /**
  * Phone-width layout checks for fleetwatch (Pixel 7, 412px). Every screen: no text
  * collisions, nothing spilling past the viewport. The overview screen is the
@@ -25,33 +27,33 @@ const OVERVIEW = [
   {
     source: 'mac-mini', collector: 'doc-checks', report_id: 'r1', collected_at: ago(780),
     age_s: 780, interval_s: 3600, freshness: 'fresh',
-    worst: 'pass', pass: 82, warn: 0, fail: 0, skip: 0, total: 82,
+    worst: 'pass', pass: 82, warn: 0, fail: 0, skip: 0, muted: 0, total: 82,
   },
   {
     source: 'mac-mini', collector: 'fleet-health', report_id: 'r2', collected_at: ago(660),
     age_s: 660, interval_s: 3600, freshness: 'fresh',
-    worst: 'warn', pass: 85, warn: 7, fail: 0, skip: 0, total: 92,
+    worst: 'warn', pass: 85, warn: 7, fail: 0, skip: 0, muted: 0, total: 92,
   },
   {
     source: 'mac-mini', collector: 'dependabot-and-container-image-freshness', report_id: 'r3',
     collected_at: ago(90000), age_s: 90000, interval_s: 86400, freshness: 'overdue',
-    worst: 'fail', pass: 3, warn: 1, fail: 2, skip: 4, total: 10,
+    worst: 'fail', pass: 3, warn: 1, fail: 2, skip: 4, muted: 0, total: 10,
   },
-];
+] satisfies OverviewEntry[];
 
 const PROBLEMS = {
   checks: [
     {
       source: 'mac-mini', collector: 'fleet-health', report_id: 'r2', section: 'disk',
       label: 'root filesystem usage above threshold', subject: '/dev/disk1s1',
-      verdict: 'warn', observed: '86%', expected: '< 80%', ref: null, collected_at: ago(660),
+      verdict: 'warn', observed: '86%', expected: '< 80%', ref: null, detail: null, collected_at: ago(660),
       first_seen: new Date(Date.now() - 9 * 86400_000).toISOString(),
     },
     {
       source: 'mac-mini', collector: 'dependabot-and-container-image-freshness', report_id: 'r3',
       section: 'images', label: 'container image is behind the upstream tag',
       subject: 'xinutec/fleetwatch', verdict: 'fail', observed: 'sha 9dc8fec', expected: 'sha f335fb2',
-      ref: null, collected_at: ago(90000),
+      ref: null, detail: null, collected_at: ago(90000),
       first_seen: null,
     },
     // Hostile content (see the REPORT note): a long unbreakable path in observed.
@@ -61,14 +63,14 @@ const PROBLEMS = {
       section: 'lint', label: 'example-repo', subject: null, verdict: 'fail',
       observed:
         '/build/example/frontend/src/app/features/controllers/controller-list.component.scss:42',
-      expected: null, ref: null, collected_at: ago(660),
+      expected: null, ref: null, detail: null, collected_at: ago(660), first_seen: null,
     },
   ],
   muted: [
     {
       source: 'amun', collector: 'vpn-nodes', report_id: 'r5', section: 'wireguard',
       label: 'bes', subject: null, verdict: 'fail',
-      observed: 'stale: last handshake 1d16h ago', ref: null, collected_at: ago(300),
+      observed: 'stale: last handshake 1d16h ago', ref: null, detail: null, collected_at: ago(300),
       mute_id: '01J0MUTE0000000000000BES0', reason: 'Pi powered off — enough thermometer data from other devices',
       expires_at: inHours(20),
     },
@@ -91,10 +93,10 @@ const PROBLEMS = {
     {
       source: 'amun', collector: 'dependabot-and-container-image-freshness',
       report_id: 'r9', collected_at: ago(60), age_s: 60, interval_s: 3600,
-      freshness: 'fresh', worst: 'pass', pass: 5, warn: 0, fail: 0, skip: 0, total: 5,
+      freshness: 'fresh', worst: 'pass', pass: 5, warn: 0, fail: 0, skip: 0, muted: 0, total: 5,
     },
   ],
-};
+} satisfies Problems;
 
 // A realistic trend: enough points for a line, mixed verdicts for the strip,
 // and a null-value run (the chart must skip it, the timeline must not).
@@ -102,7 +104,7 @@ const HISTORY = {
   source: 'mac-mini', collector: 'fleet-health', section: 'disk',
   label: 'root filesystem usage above threshold', unit: '%',
   points: [
-    ...Array.from({ length: 10 }, (_, i) => ({
+    ...Array.from({ length: 10 }, (_, i): HistoryPoint => ({
       collected_at: ago((12 - i) * 21600),
       verdict: i === 7 ? 'warn' : 'pass',
       value: 43 + i * 4,
@@ -110,7 +112,7 @@ const HISTORY = {
     { collected_at: ago(2 * 21600), verdict: 'skip', value: null },
     { collected_at: ago(21600), verdict: 'fail', value: 86 },
   ],
-};
+} satisfies History;
 
 const REPORT = {
   id: 'r2', source: 'mac-mini', collector: 'fleet-health', schema: 1,
@@ -142,7 +144,7 @@ const REPORT = {
         '/build/example/frontend/src/app/features/controllers/controller-list.component.scss:42 DL-SCSS-ADHOC-FONT-SIZE',
     },
   ],
-};
+} satisfies ReportDetail;
 
 async function mockApi(page: Page): Promise<void> {
   await page.route('**/api/overview', (r) => r.fulfill({ json: OVERVIEW }));
