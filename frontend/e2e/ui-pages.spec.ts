@@ -1,6 +1,6 @@
 import { test, type Page } from '@playwright/test';
 import {
-  expectNoTextOverlaps,
+  expectCleanLayout,
   expectNoHorizontalOverflow,
   expectRecoversFromMissingBundle,
   expectUpInTheBar,
@@ -174,8 +174,7 @@ test('overview — tiles + pills: lays out cleanly @ phone width', async ({ page
   await page.goto('/');
   await page.getByText('doc-checks').waitFor();
   await page.getByText('fleet-health').waitFor();
-  await expectNoTextOverlaps(page, testInfo);
-  await expectNoHorizontalOverflow(page, testInfo);
+  await expectCleanLayout(page, testInfo);
 });
 
 test('problems — checks + stale list: lays out cleanly @ phone width', async ({ page }, testInfo) => {
@@ -188,7 +187,7 @@ test('problems — checks + stale list: lays out cleanly @ phone width', async (
   // whole-body scan reads nav-label-over-content as a collision — the occlusion
   // false positive the harness documents for overlays. `main` excludes the nav
   // while still catching any real overlap within the content.
-  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectCleanLayout(page, testInfo, { root: 'main' });
   await expectNoHorizontalOverflow(page, testInfo);
 });
 
@@ -197,7 +196,7 @@ test('problems — open mute form: lays out cleanly @ phone width', async ({ pag
   await page.goto('/problems');
   await page.getByRole('button', { name: 'Mute this check' }).first().click();
   await page.getByText('Why is this expected?').waitFor();
-  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectCleanLayout(page, testInfo, { root: 'main' });
   await expectNoHorizontalOverflow(page, testInfo);
 });
 
@@ -206,7 +205,7 @@ test('problems — open retire form: lays out cleanly @ phone width', async ({ p
   await page.goto('/problems');
   await page.getByRole('button', { name: 'Retire this producer' }).first().click();
   await page.getByText('Why is this producer finished?').waitFor();
-  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectCleanLayout(page, testInfo, { root: 'main' });
   await expectNoHorizontalOverflow(page, testInfo);
 });
 
@@ -217,7 +216,7 @@ test('history — chart + runs: lays out cleanly @ phone width', async ({ page }
       '&label=root+filesystem+usage+above+threshold',
   );
   await page.getByText('Verdict timeline').waitFor();
-  await expectNoTextOverlaps(page, testInfo, 'main');
+  await expectCleanLayout(page, testInfo, { root: 'main' });
   await expectNoHorizontalOverflow(page, testInfo);
 });
 
@@ -225,8 +224,7 @@ test('report — one collector detail: lays out cleanly @ phone width', async ({
   await mockApi(page);
   await page.goto('/reports/r2');
   await page.getByText('fleet-health', { exact: false }).first().waitFor();
-  await expectNoTextOverlaps(page, testInfo);
-  await expectNoHorizontalOverflow(page, testInfo);
+  await expectCleanLayout(page, testInfo);
 });
 
 // A report and a history are drilled into: the bar leads with the arrow up and
