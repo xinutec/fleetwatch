@@ -1,7 +1,6 @@
 import { test, type Page } from '@playwright/test';
 import {
   expectCleanLayout,
-  expectNoHorizontalOverflow,
   expectRecoversFromMissingBundle,
   expectUpInTheBar,
   expectViewportIsPhone,
@@ -188,7 +187,7 @@ test('problems — checks + stale list: lays out cleanly @ phone width', async (
   // false positive the harness documents for overlays. `main` excludes the nav
   // while still catching any real overlap within the content.
   await expectCleanLayout(page, testInfo, { root: 'main' });
-  await expectNoHorizontalOverflow(page, testInfo);
+  await expectCleanLayout(page, testInfo);
 });
 
 test('problems — open mute form: lays out cleanly @ phone width', async ({ page }, testInfo) => {
@@ -197,7 +196,7 @@ test('problems — open mute form: lays out cleanly @ phone width', async ({ pag
   await page.getByRole('button', { name: 'Mute this check' }).first().click();
   await page.getByText('Why is this expected?').waitFor();
   await expectCleanLayout(page, testInfo, { root: 'main' });
-  await expectNoHorizontalOverflow(page, testInfo);
+  await expectCleanLayout(page, testInfo);
 });
 
 test('problems — open retire form: lays out cleanly @ phone width', async ({ page }, testInfo) => {
@@ -206,7 +205,7 @@ test('problems — open retire form: lays out cleanly @ phone width', async ({ p
   await page.getByRole('button', { name: 'Retire this producer' }).first().click();
   await page.getByText('Why is this producer finished?').waitFor();
   await expectCleanLayout(page, testInfo, { root: 'main' });
-  await expectNoHorizontalOverflow(page, testInfo);
+  await expectCleanLayout(page, testInfo);
 });
 
 test('history — chart + runs: lays out cleanly @ phone width', async ({ page }, testInfo) => {
@@ -217,7 +216,7 @@ test('history — chart + runs: lays out cleanly @ phone width', async ({ page }
   );
   await page.getByText('Verdict timeline').waitFor();
   await expectCleanLayout(page, testInfo, { root: 'main' });
-  await expectNoHorizontalOverflow(page, testInfo);
+  await expectCleanLayout(page, testInfo);
 });
 
 test('report — one collector detail: lays out cleanly @ phone width', async ({ page }, testInfo) => {
