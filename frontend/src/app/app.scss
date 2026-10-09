@@ -21,7 +21,7 @@
 .content {
   flex: 1;
   // Room for the fixed bottom nav on phones.
-  padding: 0.5rem 0.75rem calc(70px + env(safe-area-inset-bottom));
+  padding: 0.5rem 0.75rem 70px;
   max-width: 900px;
   width: 100%;
   margin: 0 auto;
@@ -33,7 +33,6 @@
   z-index: 10;
   display: flex;
   justify-content: space-around;
-  padding-bottom: env(safe-area-inset-bottom);
   background: var(--mat-sys-surface-container);
   border-top: 1px solid var(--mat-sys-outline-variant);
 
