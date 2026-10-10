@@ -227,23 +227,43 @@ pub async fn ingest(
                     .await
                     .map_err(AppError::from)?;
                 }
-                // Passing ends the run. The next failure starts a new one, which
-                // is the point: an age should describe THIS fault, not the last
-                // time this check was ever unhappy.
-                Verdict::Pass | Verdict::Skip => {
-                    sqlx::query(
-                        "DELETE FROM problem_since \
-                         WHERE source = ? AND collector = ? AND label = ?",
-                    )
-                    .bind(source)
-                    .bind(&upload.collector)
-                    .bind(&c.label)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(AppError::from)?;
-                }
+                Verdict::Pass | Verdict::Skip => {}
             }
         }
+
+        // Every run the newest report does not show failing has ended: a check
+        // that passes, and a check that is not reported at all. The next failure
+        // starts a new run, which is the point — an age describes THIS fault.
+        //
+        // Absent counts because a producer may put its message in the label
+        // ("tefnut: unreachable: <the error>"): once it recovers it reports a
+        // different label and never this one again, and a run ended only by a
+        // pass of the same label stayed open for weeks, so the same text
+        // returning read as three weeks of failure.
+        let failing: Vec<&str> = upload
+            .checks
+            .iter()
+            .filter(|c| matches!(c.verdict, Verdict::Fail | Verdict::Warn))
+            .map(|c| c.label.as_str())
+            .collect();
+        let mut ended = sqlx::QueryBuilder::new("DELETE FROM problem_since WHERE source = ");
+        ended
+            .push_bind(source)
+            .push(" AND collector = ")
+            .push_bind(&upload.collector);
+        if !failing.is_empty() {
+            ended.push(" AND label NOT IN (");
+            let mut each = ended.separated(", ");
+            for label in &failing {
+                each.push_bind(*label);
+            }
+            each.push_unseparated(")");
+        }
+        ended
+            .build()
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::from)?;
     }
 
     tx.commit().await.map_err(AppError::from)?;

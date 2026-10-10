@@ -134,3 +134,70 @@ async fn a_late_replay_of_an_older_report_does_not_reset_the_age() {
 
     common::clean(&pool, source).await;
 }
+
+/// A check absent from the newest report is not failing any more, and its run
+/// ends. A producer whose labels carry their message ("tefnut: unreachable:
+/// <the error>") never reports the old label again once it recovers; when the
+/// same text came back three weeks later it showed as failing for three weeks.
+#[tokio::test]
+async fn a_check_absent_from_the_newest_report_ends_its_run() {
+    let source = "test-since-absent";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping problem_since test");
+        return;
+    };
+
+    ingest(
+        &pool,
+        source,
+        300,
+        vec![check("box: unreachable", Verdict::Fail)],
+    )
+    .await;
+    // Recovered: the producer now reports a different label, not this one.
+    ingest(&pool, source, 240, vec![check("box: up", Verdict::Pass)]).await;
+    // The same text again, much later.
+    ingest(
+        &pool,
+        source,
+        30,
+        vec![check("box: unreachable", Verdict::Fail)],
+    )
+    .await;
+
+    let age = first_seen_of(&pool, source, "box: unreachable")
+        .await
+        .expect("a first_seen");
+    assert!(
+        (25..=35).contains(&age),
+        "the age should describe THIS fault (~30m), not the one that ended when \
+         the label stopped being reported, got {age}m"
+    );
+
+    common::clean(&pool, source).await;
+}
+
+/// The same guard as the replay test, for absence: an OLD report that lacks a
+/// check must not end a run the newest report still shows.
+#[tokio::test]
+async fn a_late_replay_lacking_a_check_does_not_end_its_run() {
+    let source = "test-since-absent-replay";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping problem_since test");
+        return;
+    };
+
+    ingest(&pool, source, 180, vec![check("held", Verdict::Fail)]).await;
+    ingest(&pool, source, 10, vec![check("held", Verdict::Fail)]).await;
+    ingest(&pool, source, 240, vec![check("other", Verdict::Pass)]).await;
+
+    let age = first_seen_of(&pool, source, "held")
+        .await
+        .expect("still failing");
+    assert!(
+        (175..=185).contains(&age),
+        "a replay ended an open run: {age}m"
+    );
+
+    common::clean(&pool, source).await;
+}
