@@ -242,3 +242,18 @@ test('history — the bar goes up and names the check', async ({ page }) => {
   await page.getByText('Recent runs').waitFor();
   await expectUpInTheBar(page);
 });
+
+// The phone's case: the app reopened on a history screen, the overview tab, then
+// back. Up then counted three navigations as "opened from the app" and stepped
+// back into nothing, so the arrow did nothing.
+test('history — up from the first screen, returned to by back, goes to its parent', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/history?source=odin&collector=doc-checks&section=s&label=swap%20in%20use');
+  await page.getByText('Recent runs').waitFor();
+  await page.locator('nav.nav a.tab', { hasText: 'Overview' }).click();
+  await page.waitForURL((url) => url.pathname === '/');
+  await page.goBack();
+  await page.getByText('Recent runs').waitFor();
+  await page.locator('mat-toolbar button', { has: page.locator('mat-icon', { hasText: 'arrow_back' }) }).click();
+  await page.waitForURL((url) => url.pathname === '/problems', { timeout: 5000 });
+});
