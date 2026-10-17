@@ -22,7 +22,7 @@ const BOOT: Boot = Boot {
 async fn ingest(pool: &sqlx::MySqlPool, source: &str, collector: &str, collected_ago: Duration) {
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: collector.into(),
         collected_at: Utc::now() - collected_ago,
         duration_ms: None,

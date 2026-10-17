@@ -31,7 +31,7 @@ fn check(label: &str, verdict: Verdict) -> CheckUpload {
 async fn ingest(pool: &sqlx::MySqlPool, source: &str, ago_min: i64, checks: Vec<CheckUpload>) {
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "c".into(),
         collected_at: Utc::now() - Duration::minutes(ago_min),
         duration_ms: None,

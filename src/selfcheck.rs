@@ -261,7 +261,7 @@ pub async fn build(
 
     Ok(ReportUpload {
         schema: crate::report::types::SCHEMA,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: COLLECTOR.into(),
         collected_at: now,
         duration_ms: Some(started.elapsed().as_millis() as u64),

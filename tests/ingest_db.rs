@@ -33,7 +33,7 @@ async fn ingest_idempotency_and_rollup() {
         return;
     };
 
-    let id = Ulid::new().to_string();
+    let id = Ulid::generate().to_string();
     let upload = ReportUpload {
         schema: 1,
         id: id.clone(),
@@ -125,7 +125,7 @@ async fn rejects_bad_schema_and_ulid() {
 
     let mut upload = ReportUpload {
         schema: 999,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "x".into(),
         collected_at: Utc::now(),
         duration_ms: None,
@@ -158,7 +158,7 @@ async fn stale_collector_surfaces_in_problems() {
     // A report collected 5h ago with an hourly interval → Silent (> 3×).
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "fleet-health".into(),
         collected_at: Utc::now() - Duration::hours(5),
         duration_ms: None,
@@ -188,7 +188,7 @@ async fn rejects_checks_that_would_corrupt_a_trend_identity() {
 
     let upload = |checks: Vec<CheckUpload>| ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "fleet-health".into(),
         collected_at: Utc::now(),
         duration_ms: None,

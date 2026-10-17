@@ -716,7 +716,7 @@ pub async fn create_mute(
         .ttl_hours
         .clamp(*MUTE_TTL_HOURS.start(), *MUTE_TTL_HOURS.end());
 
-    let id = Ulid::new().to_string();
+    let id = Ulid::generate().to_string();
     let created_at = Utc::now();
     let expires_at = created_at + Duration::hours(ttl as i64);
 

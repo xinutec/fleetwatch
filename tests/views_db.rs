@@ -41,7 +41,7 @@ async fn history_and_runs_time_series() {
         };
         let upload = ReportUpload {
             schema: 1,
-            id: Ulid::new().to_string(),
+            id: Ulid::generate().to_string(),
             collector: "fleet-health".into(),
             collected_at: now - Duration::hours(h),
             duration_ms: Some(1000),

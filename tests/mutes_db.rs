@@ -57,7 +57,7 @@ async fn mute_suppresses_problem_and_greens_tile() {
 
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "vpn-nodes".into(),
         collected_at: Utc::now(),
         duration_ms: None,
@@ -153,7 +153,7 @@ async fn unmute_restores_problem() {
 
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "vpn-nodes".into(),
         collected_at: Utc::now(),
         duration_ms: None,
@@ -201,7 +201,7 @@ async fn expired_mute_is_inert() {
 
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: "vpn-nodes".into(),
         collected_at: Utc::now(),
         duration_ms: None,
@@ -217,7 +217,7 @@ async fn expired_mute_is_inert() {
         "INSERT INTO mute (id, source, collector, label, reason, created_by, created_at, expires_at) \
          VALUES (?, ?, 'vpn-nodes', 'bes', 'lapsed', 'pip', ?, ?)",
     )
-    .bind(Ulid::new().to_string())
+    .bind(Ulid::generate().to_string())
     .bind(source)
     .bind(created)
     .bind(past)

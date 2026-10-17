@@ -54,7 +54,7 @@ async fn ingest_at(
 ) {
     let upload = ReportUpload {
         schema: 1,
-        id: Ulid::new().to_string(),
+        id: Ulid::generate().to_string(),
         collector: collector.into(),
         collected_at,
         duration_ms: None,

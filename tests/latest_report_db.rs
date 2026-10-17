@@ -94,7 +94,7 @@ async fn derived(pool: &MySqlPool, source: &str, collector: &str) -> Option<Stri
 /// Two ULIDs, smaller first. Minting is time-ordered, so this is just a sort —
 /// but the tests below depend on WHICH is smaller, not on how they were made.
 fn id_pair() -> (String, String) {
-    let (a, b) = (Ulid::new().to_string(), Ulid::new().to_string());
+    let (a, b) = (Ulid::generate().to_string(), Ulid::generate().to_string());
     if a < b { (a, b) } else { (b, a) }
 }
 
@@ -112,7 +112,7 @@ async fn pointer_follows_collection_time_not_arrival_order() {
         &pool,
         source,
         collector,
-        &Ulid::new().to_string(),
+        &Ulid::generate().to_string(),
         minutes_ago(120),
     )
     .await;
@@ -120,7 +120,7 @@ async fn pointer_follows_collection_time_not_arrival_order() {
         &pool,
         source,
         collector,
-        &Ulid::new().to_string(),
+        &Ulid::generate().to_string(),
         minutes_ago(60),
     )
     .await;
@@ -128,7 +128,7 @@ async fn pointer_follows_collection_time_not_arrival_order() {
         &pool,
         source,
         collector,
-        &Ulid::new().to_string(),
+        &Ulid::generate().to_string(),
         minutes_ago(180),
     )
     .await;
@@ -260,7 +260,7 @@ async fn rebuild_reproduces_the_pointer_from_history() {
         &pool,
         source,
         collector,
-        &Ulid::new().to_string(),
+        &Ulid::generate().to_string(),
         minutes_ago(90),
     )
     .await;
@@ -268,7 +268,7 @@ async fn rebuild_reproduces_the_pointer_from_history() {
         &pool,
         source,
         collector,
-        &Ulid::new().to_string(),
+        &Ulid::generate().to_string(),
         minutes_ago(5),
     )
     .await;
