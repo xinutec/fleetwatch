@@ -5,9 +5,17 @@
     android:viewportHeight="108">
     <!-- Server rack (for the monitoring dashboard): a cabinet holding three
          rack-mounted units, each with a status LED. Reads as machines/infra,
-         not human health. Centred within the 108x108 adaptive-icon safe zone.
-         LEDs are filled with the launcher background colour (#E65100) so they
-         read as holes punched through the white units. -->
+         not human health. LEDs are filled with the launcher background colour
+         (#E65100) so they read as holes punched through the white units.
+         Only a 66dp circle of the 108dp canvas is sure to show: drawn at full
+         size the cabinet's corners sit ~41dp from the centre and its top and
+         bottom edges at 34.5dp, so the circle cut them; at 0.76 the corners sit
+         ~31dp out. -->
+    <group
+        android:scaleX="0.76"
+        android:scaleY="0.76"
+        android:pivotX="54"
+        android:pivotY="54">
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="5"
@@ -32,4 +40,5 @@
     <path
         android:fillColor="#E65100"
         android:pathData="M40.5,71.5 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0 Z" />
+    </group>
 </vector>
