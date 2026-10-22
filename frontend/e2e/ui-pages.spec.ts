@@ -6,6 +6,7 @@ import {
   expectUpInTheBar,
   expectViewportIsPhone,
 } from '@xinutec/ui-harness';
+import { routesFrom, screens } from '@xinutec/ui-harness/routes';
 
 import type { History, HistoryPoint, OverviewEntry, Problems, ReportDetail } from '../src/app/models';
 
@@ -153,6 +154,19 @@ async function mockApi(page: Page): Promise<void> {
   await page.route('**/api/history*', (r) =>
     r.fulfill({ json: HISTORY }),
   );
+}
+
+/** Every screen in the route table (`routes.json`), not only those a test opens. */
+for (const { route, url } of screens(
+  routesFrom('e2e/routes.json'),
+  { id: 'r2' },
+)) {
+  test(`${route} lays out cleanly @ phone width`, async ({ page }, testInfo) => {
+    await mockApi(page);
+    await page.goto(url);
+    await page.waitForLoadState('networkidle');
+    await expectCleanLayout(page, testInfo);
+  });
 }
 
 test('the suite really runs at phone geometry', async ({ page }) => {

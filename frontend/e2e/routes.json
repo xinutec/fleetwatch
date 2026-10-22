@@ -1,0 +1,8 @@
+{
+  "routes": [
+    "/",
+    "/problems",
+    "/reports/:id",
+    "/history"
+  ]
+}
