@@ -43,6 +43,9 @@ impl StaticDir {
         std::fs::create_dir_all(&dir).expect("create static dir");
         std::fs::write(dir.join("index.html"), "<!doctype html><html></html>").expect("index");
         std::fs::write(dir.join("main-4E6MULDR.js"), "export {};").expect("bundle");
+        for name in ["icon.svg", "manifest.webmanifest", "ngsw-worker.js"] {
+            std::fs::write(dir.join(name), "x").expect("file");
+        }
         Self(dir)
     }
 }
@@ -188,4 +191,16 @@ async fn a_missing_asset_is_a_404_and_not_the_page() {
 async fn a_deep_link_still_gets_the_page() {
     let (status, _) = cache_control("/problems").await;
     assert_eq!(status, StatusCode::OK);
+}
+
+/// Only a name carrying its content hash may be kept for good. An icon, the
+/// manifest and the service worker's files keep their names across builds, so a
+/// year of `immutable` pins the old one on every phone.
+#[tokio::test]
+async fn a_file_that_keeps_its_name_revalidates() {
+    for path in ["/icon.svg", "/manifest.webmanifest", "/ngsw-worker.js"] {
+        let (status, cc) = cache_control(path).await;
+        assert_eq!(status, StatusCode::OK, "{path}");
+        assert_eq!(cc, "no-cache", "{path}");
+    }
 }

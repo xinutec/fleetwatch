@@ -11,61 +11,53 @@ pub mod telemetry;
 pub mod views;
 
 use axum::Router;
-use axum::http::{HeaderValue, Response, header};
+use axum::http::{HeaderValue, header};
 use axum::routing::{delete, get, post};
 use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
-use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
 use crate::state::AppState;
 
-/// How long a static response may be reused without asking again.
-///
-/// ⚠ **`index.html` MUST REVALIDATE.** With no `Cache-Control` at all — which
-/// is what this served from 2026-07-04 until it was measured on 2026-09-07 — a
-/// client falls back to HEURISTIC freshness, roughly a tenth of the document's
-/// age, and may keep it for days without ever asking. The document names the
-/// content-hashed bundle, so the new `main-*.js` is never fetched either and a
-/// deploy is invisible: an Android `WebView` loaded messages' API and a whole
-/// thread while running several builds behind, with a missing button as the
-/// only symptom.
-///
-/// `no-cache` means "ask first", not "never keep" — the `ETag` still turns the
-/// usual case into a 304 with no body.
-///
-/// Everything else Angular emits carries a content hash in its NAME, so a new
-/// build is a new URL and the old one can never be wrong. Those are the one
-/// kind of response `immutable` is honestly available for.
-///
-/// Generic over the body: `ServeDir`'s response body type depends on what it
-/// falls back to, and this predicate only ever reads a header.
-fn cache_control_for<B>(res: &Response<B>) -> Option<HeaderValue> {
-    // ⚠ **A 404 is not an asset.** `SetResponseHeaderLayer::overriding` stamps
-    // whatever the service returned, and a missing file answered with a year of
-    // `immutable` is a client that will not ask for that name again this year.
-    // Only a response that carried something may say how long it keeps.
-    //
-    // ⚠ NOT `!is_success()`. That excludes **304 Not Modified**, which must
-    // carry the headers a 200 would so the client can refresh what it already
-    // holds. Stripping it made every revalidated image a full re-fetch, and the
-    // arriving bytes grew the thread AFTER it had scrolled to the bottom —
-    // `thread-scroll.spec.ts` caught it at 271px off, a symptom with no visible
-    // connection to a cache header.
-    if res.status().is_client_error() || res.status().is_server_error() {
-        return None;
-    }
-    let is_html = res
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with("text/html"));
-    Some(if is_html {
-        HeaderValue::from_static("no-cache")
+/// A name carrying its content hash (`main-7GNM4EPX.js`, a font's `-ABCD1234`):
+/// a new build is a new name, so it may be cached for ever.
+fn is_content_hashed(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or("");
+    let Some((stem, _ext)) = name.rsplit_once('.') else {
+        return false;
+    };
+    let Some((_, hash)) = stem.rsplit_once('-') else {
+        return false;
+    };
+    hash.len() == 8
+        && hash
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+}
+
+/// How long a static response may be reused. A hashed file is `immutable`.
+/// Everything else revalidates (`no-cache`: ask first, then a 304 via the ETag):
+/// the page names the bundle, and an icon, the manifest and the service worker's
+/// files keep their names across builds, so a year of `immutable` pins the old
+/// one on every phone. Without `Cache-Control` a WebView caches heuristically and
+/// runs a build several deploys old. An error is never `immutable`, or the name is
+/// not asked for again; a 304 keeps what a 200 would say.
+async fn cache_headers(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let hashed = is_content_hashed(req.uri().path());
+    let mut res = next.run(req).await;
+    let failed = res.status().is_client_error() || res.status().is_server_error();
+    let value = if hashed && !failed {
+        "public, max-age=31536000, immutable"
     } else {
-        HeaderValue::from_static("public, max-age=31536000, immutable")
-    })
+        "no-cache"
+    };
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static(value));
+    res
 }
 
 /// Serve the app's page for a client-side ROUTE, and 404 anything that plainly
@@ -160,10 +152,7 @@ pub fn router(state: AppState) -> Router {
         // hooked every route and stamped a year of `immutable` onto API JSON,
         // which is this bug pointing the other way.
         let serve = ServiceBuilder::new()
-            .layer(SetResponseHeaderLayer::overriding(
-                header::CACHE_CONTROL,
-                cache_control_for,
-            ))
+            .layer(axum::middleware::from_fn(cache_headers))
             .service(serve);
         app = app.fallback_service(serve);
     }
