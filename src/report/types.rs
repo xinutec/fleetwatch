@@ -82,8 +82,11 @@ pub struct CheckKey {
 // --- upload (producer → fleetwatch). Deserialize only; producers aren't TS. ---
 
 /// One report POSTed by a producer. `id` is a producer-minted ULID used as the
-/// idempotency key (the spool may re-send after a network flap).
+/// idempotency key (the spool may re-send after a network flap). A key the
+/// schema does not know is refused (422), never swallowed: a producer's typo
+/// surfaces as a dropped upload and a stale producer, not a thinner check.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReportUpload {
     pub schema: u32,
     pub id: String,
@@ -97,6 +100,7 @@ pub struct ReportUpload {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CheckUpload {
     pub section: String,
     pub label: String,
