@@ -7,7 +7,9 @@
 use chrono::{Duration, Utc};
 use fleetwatch::db::MAX_CONNECTIONS;
 use fleetwatch::report::types::Verdict;
-use fleetwatch::selfcheck::{Boot, Sweep, boot_checks, lag_check, pool_check, retention_check};
+use fleetwatch::selfcheck::{
+    Boot, Churn, Sweep, boot_checks, churn_check, lag_check, pool_check, retention_check,
+};
 
 #[test]
 fn pool_bands() {
@@ -121,4 +123,52 @@ fn boot_costs_are_reported_not_judged() {
     assert!(checks.iter().all(|c| c.verdict == Verdict::Pass));
     assert_eq!(checks[0].value, Some(47_000.0));
     assert_eq!(checks[1].value, Some(1_112.0));
+}
+
+fn churn(section: &str, seen: i64, now: i64) -> Churn {
+    Churn {
+        source: String::from("mac-mini"),
+        collector: String::from("fleet-health"),
+        section: section.to_string(),
+        seen,
+        now,
+    }
+}
+
+/// A label that carries a count or a time is a new series every time it
+/// changes, so its history and mutes are lost: 907 labels for 15 certificates.
+#[test]
+fn a_section_whose_labels_keep_changing_warns_and_is_named() {
+    let c = churn_check(&[
+        churn("Public TLS certs", 75, 15),
+        churn("HEALTHCHECKS", 88, 9),
+    ]);
+    assert_eq!(c.label, "labels hold still");
+    assert_eq!(c.verdict, Verdict::Warn);
+    let said = c.observed.unwrap_or_default();
+    assert!(
+        said.contains("mac-mini · fleet-health · Public TLS certs: 75 labels"),
+        "{said}"
+    );
+    assert!(said.contains("HEALTHCHECKS: 88 labels"), "{said}");
+    assert_eq!(c.value, Some(2.0));
+}
+
+/// Renaming a section's labels once leaves old and new side by side in the
+/// window: twice the checks, which is not churn. Past two and a half is.
+#[test]
+fn a_one_off_rename_is_not_churn() {
+    let c = churn_check(&[churn("App pages", 30, 15), churn("disk", 5, 2)]);
+    assert_eq!(c.verdict, Verdict::Pass, "{:?}", c.observed);
+    assert_eq!(churn_check(&[churn("disk", 6, 2)]).verdict, Verdict::Warn);
+}
+
+#[test]
+fn no_churning_section_passes() {
+    let c = churn_check(&[]);
+    assert_eq!(
+        (c.label.as_str(), c.verdict),
+        ("labels hold still", Verdict::Pass)
+    );
+    assert_eq!(c.value, Some(0.0));
 }

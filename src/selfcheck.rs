@@ -8,8 +8,8 @@
 //! here changes that. What this adds is the internal state no external probe
 //! can reach.
 //!
-//! Four facts, each already computed or one query away (#1069 draws that line
-//! explicitly: anything needing new instrumentation is a different ticket):
+//! The facts, each already computed or one query away; anything that needs new
+//! instrumentation is a change of its own:
 //!
 //! * **pool utilisation** — #1053 was pool exhaustion and the only symptom was
 //!   500s. ⚠ This SAMPLES the pool when the report is built, so it shows the
@@ -24,6 +24,9 @@
 //!   filled.
 //! * **boot cost** — migration 0006 took 47s against a stated 0.54s and only
 //!   the pod log said so.
+//! * **label churn** — a producer that writes a count, a time or a state into
+//!   a label starts a new series each time it changes, so its history and mutes
+//!   are lost; only the store sees every producer's labels.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -221,6 +224,97 @@ pub fn boot_checks(boot: Boot) -> Vec<CheckUpload> {
     ]
 }
 
+/// How many labels a section showed over the churn window, beside how many
+/// checks its newest report has.
+#[derive(Debug, Clone)]
+pub struct Churn {
+    pub source: String,
+    pub collector: String,
+    pub section: String,
+    pub seen: i64,
+    pub now: i64,
+}
+
+/// The window a section's labels are counted over. Long enough that a label
+/// drifting once a day shows four times its checks, short enough that a section
+/// whose labels were fixed stops showing within a few days.
+pub const CHURN_WINDOW_DAYS: u32 = 3;
+
+/// More labels than this many times the newest report's checks is churn. A
+/// one-off rename leaves old and new side by side, exactly twice.
+const CHURN_FACTOR: f64 = 2.5;
+
+/// Do labels hold still? fleetwatch keys history and mutes on the label, so a
+/// producer that writes a count, a time or a state into one starts a new series
+/// each time it changes, and nothing follows it: the public certificates made
+/// 907 labels for 15 endpoints that way. Judged from the store, so it holds
+/// every producer, whatever it is written in.
+pub fn churn_check(sections: &[Churn]) -> CheckUpload {
+    let churning: Vec<&Churn> = sections
+        .iter()
+        .filter(|c| c.now > 0 && c.seen as f64 > CHURN_FACTOR * c.now as f64)
+        .collect();
+    let verdict = if churning.is_empty() {
+        Verdict::Pass
+    } else {
+        Verdict::Warn
+    };
+    let observed = if churning.is_empty() {
+        format!(
+            "no section showed more than {CHURN_FACTOR}× its checks in {CHURN_WINDOW_DAYS} days"
+        )
+    } else {
+        churning
+            .iter()
+            .map(|c| {
+                format!(
+                    "{} · {} · {}: {} labels for {} checks",
+                    c.source, c.collector, c.section, c.seen, c.now
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+    valued(
+        check("labels", "labels hold still", verdict, observed),
+        churning.len() as f64,
+        "sections",
+    )
+}
+
+/// Labels seen per section over the window, beside the newest report's checks.
+/// Walks `report` by time and joins its checks by report id: the history index
+/// ends in `collected_at`, so a window over `check_result` alone reads a
+/// producer's whole history (48s for fleet-health's one day; this is 2s for
+/// every producer's three).
+async fn churns(pool: &MySqlPool) -> sqlx::Result<Vec<Churn>> {
+    let rows: Vec<(String, String, String, i64, i64)> = sqlx::query_as(
+        "SELECT w.source, w.collector, w.section, w.seen, l.now \
+         FROM (SELECT r.source, r.collector, cr.section, COUNT(DISTINCT cr.label) AS seen \
+               FROM report r JOIN check_result cr ON cr.report_id = r.id \
+               WHERE r.received_at >= NOW() - INTERVAL ? DAY \
+               GROUP BY r.source, r.collector, cr.section) w \
+         JOIN (SELECT cr.source, cr.collector, cr.section, COUNT(*) AS now \
+               FROM latest_report lr JOIN check_result cr ON cr.report_id = lr.report_id \
+               GROUP BY cr.source, cr.collector, cr.section) l \
+           ON l.source = w.source AND l.collector = w.collector AND l.section = w.section \
+         ORDER BY w.source, w.collector, w.section",
+    )
+    .bind(CHURN_WINDOW_DAYS)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(source, collector, section, seen, now)| Churn {
+            source,
+            collector,
+            section,
+            seen,
+            now,
+        })
+        .collect())
+}
+
 /// Per-producer ingest lag for the newest report of each, in one query.
 async fn lags(pool: &MySqlPool) -> sqlx::Result<Vec<(String, String, i64, Option<u64>)>> {
     // ⚠ `interval_s` is BIGINT UNSIGNED, so it decodes as u64 and NOT i64 —
@@ -256,6 +350,7 @@ pub async fn build(
         }
         checks.push(lag_check(&source, &collector, lag_s, interval_s));
     }
+    checks.push(churn_check(&churns(pool).await?));
     checks.push(retention_check(sweep, now));
     checks.extend(boot_checks(boot));
 
