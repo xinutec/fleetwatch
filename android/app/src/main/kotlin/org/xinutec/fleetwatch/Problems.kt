@@ -30,7 +30,8 @@ data class Problems(
 
     /**
      * The subset worth waking a phone for: failures and silent producers. Warnings are
-     * dropped.
+     * dropped, and so are failures seen in only one report — most of those are a blip
+     * that is gone by the next.
      *
      * A warning is something to know, not something to do — and some of them are true
      * indefinitely by design (amun is *deliberately* held a NixOS release behind, and the
@@ -41,7 +42,7 @@ data class Problems(
      * to ignore. So warnings live on the dashboard, where you go to look; the notification
      * is reserved for what is actually broken.
      */
-    fun notifiable(): Problems = copy(checks = checks.filter { it.verdict != WARN })
+    fun notifiable(): Problems = copy(checks = checks.filter { it.verdict != WARN && it.confirmed })
 
     /**
      * A stable identity for "the current problem set", used to notify only on CHANGE.
@@ -105,6 +106,9 @@ data class Problems(
                             // (unlike the upstream one on the test classpath) renders
                             // that as the literal string "null".
                             observed = if (o.isNull("observed")) null else o.optString("observed"),
+                            // Absent from a server older than the field: believed,
+                            // so the phone notifies as it did rather than going quiet.
+                            confirmed = o.optBoolean("confirmed", true),
                         )
                     },
                 stale =
@@ -139,6 +143,8 @@ data class Problem(
     val label: String,
     val verdict: String,
     val observed: String?,
+    /** Failing in an earlier report too, not only the latest. */
+    val confirmed: Boolean = true,
 )
 
 data class Stale(

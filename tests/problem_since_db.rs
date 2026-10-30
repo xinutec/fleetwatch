@@ -201,3 +201,39 @@ async fn a_late_replay_lacking_a_check_does_not_end_its_run() {
 
     common::clean(&pool, source).await;
 }
+
+async fn confirmed_of(pool: &sqlx::MySqlPool, source: &str, label: &str) -> bool {
+    repo::problems(pool)
+        .await
+        .unwrap()
+        .checks
+        .into_iter()
+        .find(|c| c.source == source && c.label == label)
+        .expect("still a problem")
+        .confirmed
+}
+
+/// A fault is confirmed by its SECOND failing report: most faults the fleet
+/// reports are gone by the next one, a blip rather than a broken thing.
+#[tokio::test]
+async fn a_fault_is_confirmed_by_its_second_failing_report() {
+    let source = "test-since-confirmed";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping problem_since test");
+        return;
+    };
+
+    ingest(&pool, source, 180, vec![check("blip", Verdict::Fail)]).await;
+    assert!(!confirmed_of(&pool, source, "blip").await, "one report");
+    ingest(&pool, source, 120, vec![check("blip", Verdict::Fail)]).await;
+    assert!(confirmed_of(&pool, source, "blip").await, "two in a row");
+
+    ingest(&pool, source, 60, vec![check("blip", Verdict::Pass)]).await;
+    ingest(&pool, source, 0, vec![check("blip", Verdict::Fail)]).await;
+    assert!(
+        !confirmed_of(&pool, source, "blip").await,
+        "a fault that returns starts unconfirmed again"
+    );
+
+    common::clean(&pool, source).await;
+}

@@ -1,6 +1,7 @@
 package org.xinutec.fleetwatch
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -37,10 +38,10 @@ class GoldenWireTest {
     fun `every field the poller consumes survives the wire`() {
         val p = Problems.parse(golden())
 
-        // Two problem checks + one silent collector. The fixture's `muted` array is
+        // Three problem checks + one silent collector. The fixture's `muted` array is
         // deliberately not represented: muted checks are already-suppressed by the
         // server and this app must keep ignoring them.
-        assertEquals(2, p.checks.size)
+        assertEquals(3, p.checks.size)
         assertEquals(1, p.stale.size)
         assertEquals(1, p.returned.size)
 
@@ -51,12 +52,17 @@ class GoldenWireTest {
         assertEquals("pixel5", fail.label)
         assertEquals("fail", fail.verdict)
         assertEquals("last push 414 min ago", fail.observed)
+        assertTrue(fail.confirmed)
 
         val warn = p.checks[1]
         assertEquals("warn", warn.verdict)
         // The wire writes absent optionals as explicit nulls; they must come out as
         // Kotlin nulls, not "" or the string "null" (Android's org.json does that).
         assertNull(warn.observed)
+
+        val blip = p.checks[2]
+        assertEquals("messages", blip.label)
+        assertFalse(blip.confirmed)
 
         val stale = p.stale.single()
         assertEquals("isis", stale.source)
@@ -83,11 +89,12 @@ class GoldenWireTest {
     fun `the poller's decisions come out right on real wire data`() {
         val p = Problems.parse(golden())
 
-        // The warn is dropped from the notifiable set; the fail, the silent
-        // collector and the returned one survive. A return is never a warning,
+        // The warn and the first-report fail are dropped from the notifiable
+        // set; the confirmed fail, the silent collector and the returned one
+        // survive. A return is never a warning,
         // so `notifiable()` must not filter it — a retirement has no expiry, and
         // this notification is the only thing that closes that blind spot.
-        assertEquals(4, p.count)
+        assertEquals(5, p.count)
         assertEquals(3, p.notifiable().count)
         assertEquals(
             "amun/picade-drift back, isis/backup-verify silent, pixel5 fail",
@@ -96,7 +103,7 @@ class GoldenWireTest {
 
         // The fingerprint keys on fields that must therefore all be parsed for
         // real: re-parsing the same wire data reproduces it exactly, and the
-        // dropped warn distinguishes it from the full set's.
+        // dropped rows distinguish it from the full set's.
         val fp = p.notifiable().fingerprint()
         assertEquals(fp, Problems.parse(golden()).notifiable().fingerprint())
         assertNotEquals(fp, p.fingerprint())

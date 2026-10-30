@@ -23,6 +23,7 @@ const CHECK: ProblemCheck = {
   detail: null,
   collected_at: '2026-07-03T14:00:00Z',
   first_seen: null,
+  confirmed: true,
 };
 
 function payload(overrides: Partial<ProblemsData> = {}): ProblemsData {
@@ -133,6 +134,28 @@ describe('Problems (mute flow)', () => {
     del.flush(null);
     await drain();
     http.expectOne('/api/problems').flush(payload());
+  });
+
+  it('a failure seen in one report says the phone is waiting for the next', async () => {
+    const row = (): string | null | undefined =>
+      (fixture.nativeElement as HTMLElement).querySelector('.row.fail')?.textContent;
+    cmp.data.reload();
+    await drain();
+    http.expectOne('/api/problems').flush(
+      payload({
+        checks: [{ ...CHECK, first_seen: CHECK.collected_at, confirmed: false }],
+      }),
+    );
+    await drain();
+    fixture.detectChanges();
+    expect(row()).toContain('first report');
+
+    cmp.data.reload();
+    await drain();
+    http.expectOne('/api/problems').flush(payload());
+    await drain();
+    fixture.detectChanges();
+    expect(row()).not.toContain('first report');
   });
 
   it('all clear fetches the overview to say what green covers', async () => {

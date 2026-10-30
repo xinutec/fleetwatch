@@ -13,7 +13,8 @@
       "ref": "receivers.md:12",
       "detail": "memview gate — 15 checks\n  x frontend build\n  x eslint",
       "collected_at": "2026-07-03T14:00:00Z",
-      "first_seen": "2026-07-03T02:00:00Z"
+      "first_seen": "2026-07-03T02:00:00Z",
+      "confirmed": true
     },
     {
       "source": "mac-mini",
@@ -28,7 +29,24 @@
       "ref": null,
       "detail": null,
       "collected_at": "2026-07-03T14:05:00Z",
-      "first_seen": null
+      "first_seen": null,
+      "confirmed": true
+    },
+    {
+      "source": "mac-mini",
+      "collector": "ci-status",
+      "report_id": "01JZFIXTURE0000000000000H",
+      "section": "builds",
+      "label": "messages",
+      "subject": null,
+      "verdict": "fail",
+      "observed": "RuntimeError: TLS handshake timeout",
+      "expected": "gh to answer for this repo",
+      "ref": null,
+      "detail": null,
+      "collected_at": "2026-07-03T14:15:00Z",
+      "first_seen": "2026-07-03T14:15:00Z",
+      "confirmed": false
     }
   ],
   "muted": [

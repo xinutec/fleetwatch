@@ -535,6 +535,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
                 detail: r.detail.clone(),
                 collected_at: r.collected_at.and_utc(),
                 first_seen: r.first_seen.map(|t| t.and_utc()),
+                confirmed: r.first_seen.is_none_or(|t| t < r.collected_at),
             }),
         }
     }

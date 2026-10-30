@@ -64,13 +64,13 @@ class ProblemsWorker(
                 return Result.retry()
             }
 
-        // Every decision below is made on the notifiable subset — failures and silent
-        // producers, never warnings. Taking it once, here, is what keeps the three cases
+        // Every decision below is made on the notifiable subset — confirmed failures and
+        // silent producers, never warnings. Taking it once, here, is what keeps the three cases
         // consistent: a standing warning must not raise an alert, must not hold an old one
         // open after the failures clear, and must not make an unchanged fleet look new.
         val alerting = problems.notifiable()
         if (problems.count != alerting.count) {
-            Log.i(TAG, "${problems.count - alerting.count} warning(s) shown on the dashboard only")
+            Log.i(TAG, "${problems.count - alerting.count} on the dashboard only, not notified")
         }
 
         val prefs = Prefs.of(applicationContext)

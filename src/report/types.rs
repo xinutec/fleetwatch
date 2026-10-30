@@ -207,6 +207,11 @@ pub struct ProblemCheck {
     /// When this check started failing, if known.
     #[ts(type = "string | null")]
     pub first_seen: Option<DateTime<Utc>>,
+    // Most faults are gone by the next report — a timeout reaching GitHub, a
+    // phone between networks — so the phone wakes only for one seen twice.
+    // An unknown start counts as confirmed: it is older than the backfill.
+    /// Failing in an earlier report of this run too, not only the latest.
+    pub confirmed: bool,
 }
 
 /// A failing/warning check that a live mute is currently suppressing. Shown in

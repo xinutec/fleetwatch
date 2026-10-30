@@ -20,13 +20,15 @@ pub fn count(p: &Problems) -> usize {
     p.checks.len() + p.stale.len() + p.returned.len()
 }
 
-/// The subset the phone would wake for: `count` with WARN checks dropped.
-/// A warning is something to know, not something to do — some are true
-/// forever by design, and notifying on those trains you to swipe.
+/// The subset the phone would wake for: `count` with WARN checks dropped, and
+/// failures seen in only one report. A warning is something to know, not
+/// something to do — some are true forever by design, and notifying on those
+/// trains you to swipe. A one-report failure is mostly a blip that is gone by
+/// the next.
 pub fn notifiable_count(p: &Problems) -> usize {
     p.checks
         .iter()
-        .filter(|c| c.verdict != Verdict::Warn)
+        .filter(|c| c.verdict != Verdict::Warn && c.confirmed)
         .count()
         + p.stale.len()
         + p.returned.len()
@@ -52,7 +54,7 @@ pub fn render(p: &Problems) -> String {
         let _ = writeln!(
             out,
             "{n} problem(s) on the board; the phone notifies on {notif} — \
-             warnings stay on the dashboard"
+             warnings and first-report failures stay on the dashboard"
         );
     }
     for c in &p.checks {
@@ -67,7 +69,9 @@ pub fn render(p: &Problems) -> String {
         if let Some(exp) = &c.expected {
             let _ = write!(out, " (expected {exp})");
         }
-        if let Some(since) = &c.first_seen {
+        if !c.confirmed {
+            out.push_str("  [first report]");
+        } else if let Some(since) = &c.first_seen {
             let _ = write!(out, "  [since {}]", since.format("%Y-%m-%d %H:%M"));
         }
         out.push('\n');

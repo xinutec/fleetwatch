@@ -49,6 +49,7 @@ fn export_golden_problems() {
                 // A fault that has been standing for hours, so the poller's
                 // parse of an age is exercised rather than only its null case.
                 first_seen: Some(at(2, 0)),
+                confirmed: true,
             },
             // Every optional absent.
             ProblemCheck {
@@ -68,6 +69,25 @@ fn export_golden_problems() {
                 // than the backfill reads this way, and the poller must handle
                 // it rather than assuming an age is always there.
                 first_seen: None,
+                confirmed: true,
+            },
+            // A fault in its first report: on the board, but the phone waits
+            // for a second report before it wakes anyone.
+            ProblemCheck {
+                source: "mac-mini".into(),
+                collector: "ci-status".into(),
+                report_id: "01JZFIXTURE0000000000000H".into(),
+                section: "builds".into(),
+                label: "messages".into(),
+                subject: None,
+                verdict: Verdict::Fail,
+                observed: Some("RuntimeError: TLS handshake timeout".into()),
+                expected: Some("gh to answer for this repo".into()),
+                doc_ref: None,
+                detail: None,
+                collected_at: at(14, 15),
+                first_seen: Some(at(14, 15)),
+                confirmed: false,
             },
         ],
         muted: vec![MutedCheck {

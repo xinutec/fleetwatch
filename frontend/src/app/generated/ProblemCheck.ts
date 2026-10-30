@@ -12,4 +12,8 @@ detail: string | null, collected_at: string,
 /**
  * When this check started failing, if known.
  */
-first_seen: string | null, };
+first_seen: string | null, 
+/**
+ * Failing in an earlier report of this run too, not only the latest.
+ */
+confirmed: boolean, };

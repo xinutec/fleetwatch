@@ -167,7 +167,9 @@
                     @if (c.ref) {
                       <span class="ref tnum">{{ c.ref }}</span>
                     }
-                    @if (failingFor(c.first_seen); as since) {
+                    @if (!c.confirmed) {
+                      <span class="detail">first report — the phone waits for the next</span>
+                    } @else if (failingFor(c.first_seen); as since) {
                       <span class="detail">failing for {{ since }}</span>
                     }
                   </div>

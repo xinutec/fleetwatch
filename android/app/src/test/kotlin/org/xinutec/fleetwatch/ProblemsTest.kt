@@ -258,4 +258,30 @@ class ProblemsTest {
         assertEquals(1, fail.notifiable().count)
         assertNotEquals(warn.notifiable().fingerprint(), fail.notifiable().fingerprint())
     }
+
+    @Test
+    fun `a failure waits for its second report before it notifies`() {
+        // Most failures are gone by the next report: a timeout reaching GitHub, a phone
+        // between networks. The board shows them at once; the phone waits for a second.
+        fun fail(confirmed: Boolean) =
+            problems(
+                """{"checks":[{"source":"s","collector":"ci-status","section":"builds",
+               "label":"messages","verdict":"fail","observed":"TLS handshake timeout",
+               "confirmed":$confirmed}],"stale":[]}""",
+            )
+        assertEquals(1, fail(false).count)
+        assertTrue(fail(false).notifiable().isEmpty)
+        assertEquals("messages fail", fail(true).notifiable().summary())
+    }
+
+    @Test
+    fun `a server that does not say is believed confirmed`() {
+        // A server older than the field: notify as before rather than fall silent.
+        val p =
+            problems(
+                """{"checks":[{"source":"s","collector":"c","section":"r","label":"pixel5",
+               "verdict":"fail","observed":"x"}],"stale":[]}""",
+            )
+        assertEquals(1, p.notifiable().count)
+    }
 }
