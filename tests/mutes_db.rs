@@ -26,6 +26,18 @@ fn check(section: &str, label: &str, verdict: Verdict) -> CheckUpload {
     }
 }
 
+/// Ingest `upload` after an earlier copy of it, so its failures are confirmed
+/// ones: a first report from a ten-minute producer would wait in `pending`.
+async fn ingest_seen_twice(pool: &sqlx::MySqlPool, source: &str, upload: &ReportUpload) {
+    let earlier = ReportUpload {
+        id: Ulid::generate().to_string(),
+        collected_at: upload.collected_at - Duration::minutes(10),
+        ..upload.clone()
+    };
+    repo::ingest(pool, source, &earlier, "{}").await.unwrap();
+    repo::ingest(pool, source, upload, "{}").await.unwrap();
+}
+
 async fn clean_mutes(pool: &sqlx::MySqlPool, source: &str) {
     sqlx::query("DELETE FROM mute WHERE source = ?")
         .bind(source)
@@ -67,7 +79,7 @@ async fn mute_suppresses_problem_and_greens_tile() {
             check("wireguard", "isis", Verdict::Pass),
         ],
     };
-    repo::ingest(&pool, source, &upload, "{}").await.unwrap();
+    ingest_seen_twice(&pool, source, &upload).await;
 
     // problems()/mutes are GLOBAL queries; other tests seed their own bes rows,
     // so every assertion scopes to this test's source.
@@ -139,7 +151,7 @@ async fn mute_suppresses_problem_and_greens_tile() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(stored, 1);
+    assert_eq!(stored, 2, "one per report");
 }
 
 /// Unmuting (deleting the mute) makes the problem reappear immediately.
@@ -160,7 +172,7 @@ async fn unmute_restores_problem() {
         interval_s: Some(600),
         checks: vec![check("wireguard", "bes", Verdict::Fail)],
     };
-    repo::ingest(&pool, source, &upload, "{}").await.unwrap();
+    ingest_seen_twice(&pool, source, &upload).await;
 
     let mine = |s: &str| s == source;
     let mute = repo::create_mute(&pool, &new_mute(source, "vpn-nodes", "bes", 24), "pip")
@@ -208,7 +220,7 @@ async fn expired_mute_is_inert() {
         interval_s: Some(600),
         checks: vec![check("wireguard", "bes", Verdict::Fail)],
     };
-    repo::ingest(&pool, source, &upload, "{}").await.unwrap();
+    ingest_seen_twice(&pool, source, &upload).await;
 
     // Insert a mute that already lapsed an hour ago.
     let past = (Utc::now() - Duration::hours(1)).naive_utc();

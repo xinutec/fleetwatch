@@ -20,11 +20,10 @@ pub fn count(p: &Problems) -> usize {
     p.checks.len() + p.stale.len() + p.returned.len()
 }
 
-/// The subset the phone would wake for: `count` with WARN checks dropped, and
-/// failures seen in only one report. A warning is something to know, not
-/// something to do — some are true forever by design, and notifying on those
-/// trains you to swipe. A one-report failure is mostly a blip that is gone by
-/// the next.
+/// The subset the phone would wake for: `count` with WARN checks dropped. A
+/// warning is something to know, not something to do — some are true forever by
+/// design, and notifying on those trains you to swipe. Failures seen in only
+/// one report are already out of `checks`, in `pending`.
 pub fn notifiable_count(p: &Problems) -> usize {
     p.checks
         .iter()
@@ -54,7 +53,7 @@ pub fn render(p: &Problems) -> String {
         let _ = writeln!(
             out,
             "{n} problem(s) on the board; the phone notifies on {notif} — \
-             warnings and first-report failures stay on the dashboard"
+             warnings stay on the dashboard"
         );
     }
     for c in &p.checks {
@@ -69,9 +68,7 @@ pub fn render(p: &Problems) -> String {
         if let Some(exp) = &c.expected {
             let _ = write!(out, " (expected {exp})");
         }
-        if !c.confirmed {
-            out.push_str("  [first report]");
-        } else if let Some(since) = &c.first_seen {
+        if let Some(since) = &c.first_seen {
             let _ = write!(out, "  [since {}]", since.format("%Y-%m-%d %H:%M"));
         }
         out.push('\n');
@@ -94,6 +91,24 @@ pub fn render(p: &Problems) -> String {
             r.collector,
             age(r.age_s),
         );
+    }
+    if !p.pending.is_empty() {
+        let _ = writeln!(
+            out,
+            "first report ({}, not counted until the next confirms it):",
+            p.pending.len()
+        );
+        for c in &p.pending {
+            let _ = write!(
+                out,
+                "  {:4}  {}/{}  {}/{}",
+                c.verdict, c.source, c.collector, c.section, c.label
+            );
+            if let Some(obs) = &c.observed {
+                let _ = write!(out, " — {obs}");
+            }
+            out.push('\n');
+        }
     }
     if !p.muted.is_empty() {
         let _ = writeln!(out, "muted ({}, not counted):", p.muted.len());

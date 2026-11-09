@@ -208,9 +208,11 @@ pub struct ProblemCheck {
     #[ts(type = "string | null")]
     pub first_seen: Option<DateTime<Utc>>,
     // Most faults are gone by the next report — a timeout reaching GitHub, a
-    // phone between networks — so the phone wakes only for one seen twice.
+    // phone between networks — so the board shows only one seen twice, unless
+    // the producer's next report is too far off to wait for.
     // An unknown start counts as confirmed: it is older than the backfill.
-    /// Failing in an earlier report of this run too, not only the latest.
+    /// Failing in an earlier report of this run too, or from a producer that
+    /// reports too rarely to wait for its next.
     pub confirmed: bool,
 }
 
@@ -249,6 +251,14 @@ pub struct MutedCheck {
 #[ts(export)]
 pub struct Problems {
     pub checks: Vec<ProblemCheck>,
+    // Failing in one report only, from a producer that reports again within
+    // hours: kept visible and out of the count, like `muted`. Most of these are
+    // gone by the next report, so the board waits for it rather than show a blip
+    // as a fault. See `repo::CONFIRM_AT_ONCE_FROM_S` for the producers that do
+    // not wait. Defaulted so the board CLI can still read a server older
+    // than this field.
+    #[serde(default)]
+    pub pending: Vec<ProblemCheck>,
     pub muted: Vec<MutedCheck>,
     pub stale: Vec<OverviewEntry>,
     // Mutes about to run out. Synthesised here for the same reason `stale` is:

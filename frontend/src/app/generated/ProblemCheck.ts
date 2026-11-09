@@ -14,6 +14,7 @@ detail: string | null, collected_at: string,
  */
 first_seen: string | null, 
 /**
- * Failing in an earlier report of this run too, not only the latest.
+ * Failing in an earlier report of this run too, or from a producer that
+ * reports too rarely to wait for its next.
  */
 confirmed: boolean, };

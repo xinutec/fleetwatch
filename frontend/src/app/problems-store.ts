@@ -9,10 +9,18 @@ import { httpResource } from '@angular/common/http';
 import { Problems } from './models';
 import { formatAge } from './status';
 
-// `lapsing` is deliberately NOT in `count` below: a mute about to expire is a
+// `lapsing` and `pending` are deliberately NOT in `count` below; a first
+// report waits for the next to confirm it, and a mute about to expire is a
 // decision to make, not a fault. Putting it in the badge would light the app up
 // for something that is not wrong yet.
-const EMPTY: Problems = { checks: [], muted: [], stale: [], lapsing: [], returned: [] };
+const EMPTY: Problems = {
+  checks: [],
+  pending: [],
+  muted: [],
+  stale: [],
+  lapsing: [],
+  returned: [],
+};
 
 /** How often the open tab re-asks the server (only while visible). */
 export const REFRESH_MS = 90_000;

@@ -455,6 +455,7 @@ struct ProblemRow {
     doc_ref: Option<String>,
     detail: Option<String>,
     collected_at: NaiveDateTime,
+    interval_s: Option<u64>,
     /// `None` only for a run that began before migration 0006 backfilled, or
     /// for a report that arrived out of order and so did not open one. Optional
     /// rather than defaulted to now: "we do not know" and "it started this
@@ -462,9 +463,19 @@ struct ProblemRow {
     first_seen: Option<NaiveDateTime>,
 }
 
+/// A producer whose declared cadence is at least this long counts on its first
+/// failing report: waiting for the second would hide a fault for a day. Six hours
+/// splits the fleet's cadences, hourly and faster on one side, the six-hourly and
+/// nightly ones on the other.
+pub const CONFIRM_AT_ONCE_FROM_S: u64 = 6 * 3600;
+
 /// The problems view: every failing/warning check from each collector's latest
 /// report, plus collectors whose latest report has gone overdue/silent (which no
 /// check can express — a dead producer emits nothing).
+///
+/// A check seen failing in one report only is moved into `pending` unless its
+/// producer reports too rarely to wait (`CONFIRM_AT_ONCE_FROM_S`), or declares no
+/// cadence at all.
 ///
 /// A check whose identity has a live mute is moved out of `checks` (so the
 /// notifier stays quiet) into `muted` (kept visible, with reason + expiry). The
@@ -474,8 +485,9 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
     let rows: Vec<ProblemRow> = sqlx::query_as(
         "SELECT c.source, c.collector, c.report_id, c.section, c.label, c.subject, \
                 c.verdict, c.observed, c.expected, c.doc_ref, c.detail, c.collected_at, \
-                s.first_seen \
+                r.interval_s, s.first_seen \
          FROM latest_report l \
+         JOIN report r ON r.id = l.report_id \
          JOIN check_result c ON c.report_id = l.report_id \
          LEFT JOIN problem_since s ON s.source = c.source \
                                AND s.collector = c.collector AND s.label = c.label \
@@ -501,6 +513,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
     }
 
     let mut checks = Vec::new();
+    let mut pending = Vec::new();
     let mut muted = Vec::new();
     for r in &rows {
         let verdict = parse_verdict(&r.verdict)?;
@@ -521,22 +534,31 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
                 reason: m.reason.clone(),
                 expires_at: m.expires_at,
             }),
-            None => checks.push(ProblemCheck {
-                source: r.source.clone(),
-                collector: r.collector.clone(),
-                report_id: r.report_id.clone(),
-                section: r.section.clone(),
-                label: r.label.clone(),
-                subject: r.subject.clone(),
-                verdict,
-                observed: r.observed.clone(),
-                expected: r.expected.clone(),
-                doc_ref: r.doc_ref.clone(),
-                detail: r.detail.clone(),
-                collected_at: r.collected_at.and_utc(),
-                first_seen: r.first_seen.map(|t| t.and_utc()),
-                confirmed: r.first_seen.is_none_or(|t| t < r.collected_at),
-            }),
+            None => {
+                let confirmed = r.first_seen.is_none_or(|t| t < r.collected_at)
+                    || r.interval_s.is_none_or(|i| i >= CONFIRM_AT_ONCE_FROM_S);
+                let check = ProblemCheck {
+                    source: r.source.clone(),
+                    collector: r.collector.clone(),
+                    report_id: r.report_id.clone(),
+                    section: r.section.clone(),
+                    label: r.label.clone(),
+                    subject: r.subject.clone(),
+                    verdict,
+                    observed: r.observed.clone(),
+                    expected: r.expected.clone(),
+                    doc_ref: r.doc_ref.clone(),
+                    detail: r.detail.clone(),
+                    collected_at: r.collected_at.and_utc(),
+                    first_seen: r.first_seen.map(|t| t.and_utc()),
+                    confirmed,
+                };
+                if confirmed {
+                    checks.push(check);
+                } else {
+                    pending.push(check);
+                }
+            }
         }
     }
 
@@ -585,6 +607,7 @@ pub async fn problems(pool: &MySqlPool) -> Result<Problems> {
 
     Ok(Problems {
         checks,
+        pending,
         muted,
         stale,
         lapsing,

@@ -100,8 +100,9 @@
   }
 }
 
-// A muted row reads as quiet/neutral — it's a suppressed problem, not an active one.
-.row.muted {
+// A muted or first-report row reads as quiet/neutral — not an active problem.
+.row.muted,
+.row.pending {
   border-left-color: var(--v-skip);
   opacity: 0.85;
 }

@@ -29,13 +29,23 @@ fn check(label: &str, verdict: Verdict) -> CheckUpload {
 }
 
 async fn ingest(pool: &sqlx::MySqlPool, source: &str, ago_min: i64, checks: Vec<CheckUpload>) {
+    ingest_every(pool, source, ago_min, Some(3600), checks).await;
+}
+
+async fn ingest_every(
+    pool: &sqlx::MySqlPool,
+    source: &str,
+    ago_min: i64,
+    interval_s: Option<u64>,
+    checks: Vec<CheckUpload>,
+) {
     let upload = ReportUpload {
         schema: 1,
         id: Ulid::generate().to_string(),
         collector: "c".into(),
         collected_at: Utc::now() - Duration::minutes(ago_min),
         duration_ms: None,
-        interval_s: Some(3600),
+        interval_s,
         checks,
     };
     repo::ingest(pool, source, &upload, "{}")
@@ -44,11 +54,10 @@ async fn ingest(pool: &sqlx::MySqlPool, source: &str, ago_min: i64, checks: Vec<
 }
 
 async fn first_seen_of(pool: &sqlx::MySqlPool, source: &str, label: &str) -> Option<i64> {
-    repo::problems(pool)
-        .await
-        .unwrap()
-        .checks
+    let p = repo::problems(pool).await.unwrap();
+    p.checks
         .into_iter()
+        .chain(p.pending)
         .find(|c| c.source == source && c.label == label)
         .and_then(|c| c.first_seen)
         .map(|t| (Utc::now() - t).num_minutes())
@@ -203,11 +212,22 @@ async fn a_late_replay_lacking_a_check_does_not_end_its_run() {
 }
 
 async fn confirmed_of(pool: &sqlx::MySqlPool, source: &str, label: &str) -> bool {
-    repo::problems(pool)
-        .await
-        .unwrap()
+    let p = repo::problems(pool).await.unwrap();
+    let on_board = p
         .checks
+        .iter()
+        .any(|c| c.source == source && c.label == label);
+    let pending = p
+        .pending
+        .iter()
+        .any(|c| c.source == source && c.label == label);
+    assert!(
+        on_board != pending,
+        "on the board {on_board}, pending {pending}"
+    );
+    p.checks
         .into_iter()
+        .chain(p.pending)
         .find(|c| c.source == source && c.label == label)
         .expect("still a problem")
         .confirmed
@@ -234,6 +254,45 @@ async fn a_fault_is_confirmed_by_its_second_failing_report() {
         !confirmed_of(&pool, source, "blip").await,
         "a fault that returns starts unconfirmed again"
     );
+
+    common::clean(&pool, source).await;
+}
+
+/// A producer that reports daily or less often counts on its first failing
+/// report: its second is a day away, and a nightly gate that fails once is a
+/// finding, not a blip.
+#[tokio::test]
+async fn a_rare_producers_first_failing_report_is_confirmed() {
+    let source = "test-since-rare";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping problem_since test");
+        return;
+    };
+
+    ingest_every(
+        &pool,
+        source,
+        0,
+        Some(90_000),
+        vec![check("gate", Verdict::Fail)],
+    )
+    .await;
+    assert!(confirmed_of(&pool, source, "gate").await, "daily");
+
+    common::clean(&pool, source).await;
+}
+
+/// No declared cadence, no promise of a second report: the first one counts.
+#[tokio::test]
+async fn a_producer_without_a_cadence_is_confirmed_at_once() {
+    let source = "test-since-nocadence";
+    let Some((pool, _guard)) = common::setup(source).await else {
+        eprintln!("FLEETWATCH_TEST_DATABASE_URL unset — skipping problem_since test");
+        return;
+    };
+
+    ingest_every(&pool, source, 0, None, vec![check("once", Verdict::Warn)]).await;
+    assert!(confirmed_of(&pool, source, "once").await, "no interval");
 
     common::clean(&pool, source).await;
 }

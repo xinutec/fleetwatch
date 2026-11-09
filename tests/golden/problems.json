@@ -31,7 +31,9 @@
       "collected_at": "2026-07-03T14:05:00Z",
       "first_seen": null,
       "confirmed": true
-    },
+    }
+  ],
+  "pending": [
     {
       "source": "mac-mini",
       "collector": "ci-status",

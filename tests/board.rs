@@ -16,7 +16,8 @@ fn fixture() -> Problems {
 #[test]
 fn the_wire_shape_deserializes() {
     let p = fixture();
-    assert_eq!(p.checks.len(), 3);
+    assert_eq!(p.checks.len(), 2);
+    assert_eq!(p.pending.len(), 1);
     assert_eq!(p.muted.len(), 1);
     assert_eq!(p.stale.len(), 1);
     assert_eq!(p.lapsing.len(), 1);
@@ -25,12 +26,12 @@ fn the_wire_shape_deserializes() {
 
 /// The two numbers the CLI prints are the PHONE's numbers (Problems.kt):
 /// `count` = checks + stale + returned, `notifiable` additionally drops WARN
-/// and unconfirmed checks. A CLI that derived its own count would read as one of the two
-/// being broken (#1312).
+/// checks. A CLI that derived its own count would read as one of the two
+/// being broken. `pending` is in neither.
 #[test]
 fn counts_match_the_phone() {
     let p = fixture();
-    assert_eq!(board::count(&p), 5);
+    assert_eq!(board::count(&p), 4);
     assert_eq!(board::notifiable_count(&p), 3);
 }
 
@@ -46,12 +47,12 @@ fn render_names_every_row_and_says_why_the_two_counts_differ() {
     assert!(out.contains("returned"), "returned section:\n{out}");
     assert!(out.contains("lapsing"), "lapsing-mutes section:\n{out}");
     // Both counts, and the reason they differ, in one line a reader meets first.
-    assert!(out.contains("5 problem"), "board count:\n{out}");
+    assert!(out.contains("4 problem"), "board count:\n{out}");
     assert!(out.contains("notifies on 3"), "phone count:\n{out}");
     assert!(out.to_lowercase().contains("warn"), "the why:\n{out}");
     assert!(
-        out.contains("first report"),
-        "an unconfirmed row says so:\n{out}"
+        out.contains("first report") && out.contains("ci-status"),
+        "a pending row is listed under its own heading:\n{out}"
     );
 }
 
@@ -59,6 +60,7 @@ fn render_names_every_row_and_says_why_the_two_counts_differ() {
 fn a_clean_board_renders_quiet_and_counts_zero() {
     let p = Problems {
         checks: vec![],
+        pending: vec![],
         muted: vec![],
         stale: vec![],
         lapsing: vec![],

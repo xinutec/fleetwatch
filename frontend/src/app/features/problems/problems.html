@@ -167,9 +167,7 @@
                     @if (c.ref) {
                       <span class="ref tnum">{{ c.ref }}</span>
                     }
-                    @if (!c.confirmed) {
-                      <span class="detail">first report — the phone waits for the next</span>
-                    } @else if (failingFor(c.first_seen); as since) {
+                    @if (failingFor(c.first_seen); as since) {
                       <span class="detail">failing for {{ since }}</span>
                     }
                   </div>
@@ -220,6 +218,30 @@
                   </div>
                 </div>
               }
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
+
+    @if (d.pending.length > 0) {
+      <h3>First report</h3>
+      <p class="hint">Seen failing once. Counted only if the next report says so too.</p>
+      <div class="list">
+        @for (c of d.pending; track keyOf(c)) {
+          <mat-card appearance="outlined" class="row pending">
+            <mat-card-content class="row-body">
+              <span class="dot skip"></span>
+              <div class="row-main">
+                <span class="title">{{ c.label }}</span>
+                <span class="crumb tnum">
+                  {{ c.source }} · {{ c.collector }} · {{ c.section }}
+                </span>
+                @if (c.observed) {
+                  <span class="detail">{{ c.observed }}</span>
+                }
+              </div>
+              <span class="pill" [class]="c.verdict">{{ c.verdict }}</span>
             </mat-card-content>
           </mat-card>
         }

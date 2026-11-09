@@ -27,7 +27,15 @@ const CHECK: ProblemCheck = {
 };
 
 function payload(overrides: Partial<ProblemsData> = {}): ProblemsData {
-  return { checks: [CHECK], muted: [], stale: [], lapsing: [], returned: [], ...overrides };
+  return {
+    checks: [CHECK],
+    pending: [],
+    muted: [],
+    stale: [],
+    lapsing: [],
+    returned: [],
+    ...overrides,
+  };
 }
 
 /** Run scheduled effects so httpResource issues/settles its requests. NOT
@@ -136,26 +144,22 @@ describe('Problems (mute flow)', () => {
     http.expectOne('/api/problems').flush(payload());
   });
 
-  it('a failure seen in one report says the phone is waiting for the next', async () => {
-    const row = (): string | null | undefined =>
-      (fixture.nativeElement as HTMLElement).querySelector('.row.fail')?.textContent;
+  it('a failure seen in one report is listed apart, and not as all clear', async () => {
+    const pending = (): string | null | undefined =>
+      (fixture.nativeElement as HTMLElement).querySelector('.row.pending')?.textContent;
     cmp.data.reload();
     await drain();
     http.expectOne('/api/problems').flush(
       payload({
-        checks: [{ ...CHECK, first_seen: CHECK.collected_at, confirmed: false }],
+        checks: [],
+        pending: [{ ...CHECK, first_seen: CHECK.collected_at, confirmed: false }],
       }),
     );
     await drain();
     fixture.detectChanges();
-    expect(row()).toContain('first report');
-
-    cmp.data.reload();
-    await drain();
-    http.expectOne('/api/problems').flush(payload());
-    await drain();
-    fixture.detectChanges();
-    expect(row()).not.toContain('first report');
+    expect(pending()).toContain(CHECK.label);
+    expect(cmp.nothingWrong()).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.row.fail')).toBeNull();
   });
 
   it('all clear fetches the overview to say what green covers', async () => {

@@ -72,6 +72,9 @@ export class Problems {
     return (
       !this.data.isLoading() &&
       d.checks.length === 0 &&
+      // Not counted, but on this page: "all clear" above a row reads as a
+      // contradiction, for the reason `muted` is here.
+      d.pending.length === 0 &&
       d.muted.length === 0 &&
       d.stale.length === 0 &&
       // A mute about to lapse is not a fault, but it IS something on this page.

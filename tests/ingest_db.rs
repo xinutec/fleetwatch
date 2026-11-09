@@ -91,10 +91,12 @@ async fn ingest_idempotency_and_rollup() {
     assert_eq!(entry.freshness, Freshness::Fresh);
     assert_eq!(entry.report_id, id);
 
-    // Problems: the fail + warn checks surface, fail ordered first.
+    // Problems: the fail + warn checks surface, fail ordered first. One
+    // hourly report is a first report, so they wait in `pending`.
     let problems = repo::problems(&pool).await.unwrap();
+    assert!(!problems.checks.iter().any(|c| c.source == source));
     let mine: Vec<_> = problems
-        .checks
+        .pending
         .iter()
         .filter(|c| c.source == source)
         .collect();

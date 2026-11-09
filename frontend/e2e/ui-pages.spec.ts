@@ -57,8 +57,11 @@ const PROBLEMS = {
       ref: null, detail: null, collected_at: ago(90000),
       first_seen: null, confirmed: true,
     },
-    // Hostile content (see the REPORT note): a long unbreakable path in observed.
-    // Synthetic path — no real home dir / username.
+  ],
+  // A first report, so the harness renders that section at phone width too.
+  // Hostile content (see the REPORT note): a long unbreakable path in observed.
+  // Synthetic path — no real home dir / username.
+  pending: [
     {
       source: 'mac-mini', collector: 'code-health', report_id: 'r4',
       section: 'lint', label: 'example-repo', subject: null, verdict: 'fail',
