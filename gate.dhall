@@ -282,4 +282,5 @@ in  { name = "fleetwatch"
       , G.checkTable "../dev-lint"
       , G.devLint "../"
       ]
+      # G.acting "../dev-lint"
     }
