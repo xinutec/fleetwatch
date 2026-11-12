@@ -229,7 +229,7 @@ class ProblemsWorker(
  *
  * The token is a secret, so — as in the govee app — it lives in a plain file in private
  * storage rather than SharedPreferences (which are backed up), written once by
- * `deploy.sh` over `adb run-as`. It never lands in argv, a log, or this repo.
+ * `provision.sh` over `adb run-as`. It never lands in argv, a log, or this repo.
  */
 object Prefs {
     private const val FILE = "fleetwatch"

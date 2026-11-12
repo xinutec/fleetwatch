@@ -70,7 +70,7 @@ asks on a timer; the server stays passive.
   quietly expired, leaving a monitor that silently stops monitoring. So the poller uses
   a bearer **read token** (`FLEETWATCH_READ_TOKENS` server-side) which opens
   `/api/problems` and *nothing else* — a lost phone leaks no writes and no history.
-- **The token** lives in a private file (`filesDir/read_token`), injected by `deploy.sh`
+- **The token** lives in a private file (`filesDir/read_token`), injected by `provision.sh`
   from the Mac Keychain (`fleetwatch-read-token`) over `adb run-as`. It never appears in
   argv, a log, or this repo. Without it the poller stays idle (and says so in logcat)
   rather than nagging a fresh install about its own setup.
@@ -86,11 +86,10 @@ nix develop ~/Code/recall#android --command ./gradlew :app:assembleDebug
 # → app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Or build + install to the Pixel 9 in one step (keys on device model, not IP):
-
-```sh
-nix develop ~/Code/recall#android --command ./deploy.sh
-```
+The Pixel 9 gets the committed build from xinutec-infra's android plan
+(`plan-run android-pixel9 --apply`), keyed on the device model, not the IP. A
+fresh install then needs `./provision.sh` once, for the notification grant and
+the read token; a reinstall keeps both.
 
 The APK is signed with the auto-generated debug key — fine for sideloading, the
 only distribution path.

@@ -1,16 +1,16 @@
 {
   "ceilings": {
-    "acts": 1,
-    "bootstrap": 0,
+    "acts": 0,
+    "bootstrap": 1,
     "by_design": 0,
     "observer_checks": 0,
     "observes": 0
   },
   "subjects": [
     {
-      "class": "Acts",
-      "path": "android/deploy.sh",
-      "why": "builds the APK and installs it on a phone over adb: the phone-shells plan's target (automation-model item 14)"
+      "class": "Bootstrap",
+      "path": "android/provision.sh",
+      "why": "grants the app notifications and copies the read token from the Keychain, once per fresh install"
     },
     {
       "class": "OutOfScope",

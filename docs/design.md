@@ -433,7 +433,7 @@ launchd).
 Angular 22 zoneless + Angular Material (M3 tokens per the DL-SCSS rules), signals,
 mobile-first. Served single-origin by the axum binary; Android single-WebView
 wrapper at `android/` (`org.xinutec.fleetwatch`, hardcoded
-`FLEETWATCH_URL`, recall `#android` nix shell, `deploy.sh` sideload) — identical to
+`FLEETWATCH_URL`, recall `#android` nix shell, installed by xinutec-infra's android plan) — identical to
 life's wrapper.
 
 Views, in the order you'd reach for them:

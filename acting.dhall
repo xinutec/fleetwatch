@@ -13,18 +13,18 @@ let subject = A.subject
 let Class = A.Class
 
 in  { ceilings =
-        -- acts: each row names what it becomes (automation-model items 13-15)
-      { acts = 1
-      , bootstrap = 0
+        -- bootstrap: provisioning a fresh install with its token
+      { acts = 0
+      , bootstrap = 1
       , by_design = 0
       , observes = 0
       , observer_checks = 0
       }
     , subjects =
       [ subject
-              "android/deploy.sh"
-              Class.Acts
-              "builds the APK and installs it on a phone over adb: the phone-shells plan's target (automation-model item 14)"
+              "android/provision.sh"
+              Class.Bootstrap
+              "grants the app notifications and copies the read token from the Keychain, once per fresh install"
           , subject "scripts/dev-db.sh" Class.OutOfScope ""
           , subject "scripts/gen-types.sh" Class.OutOfScope ""
           , subject "scripts/setup-hooks.sh" Class.OutOfScope ""

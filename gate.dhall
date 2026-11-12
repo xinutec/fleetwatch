@@ -227,8 +227,8 @@ in  { name = "fleetwatch"
       , {-  The Android poller is a real client with real logic — warning
             filtering, fingerprinting, notification decisions — so it compiles and
             its unit tests run here, not only when someone remembers. Toolchain
-            comes from recall's android dev shell, the same one android/deploy.sh
-            uses; a missing shell FAILS these rows rather than skipping them,
+            comes from recall's android dev shell, the same SDK the android plan
+            builds with; a missing shell FAILS these rows rather than skipping them,
             because a gate that skips is a gate that lies.
         -}
         G.Check::{
